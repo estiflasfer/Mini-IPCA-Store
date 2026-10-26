@@ -37,52 +37,47 @@ Se definen estrictamente **tres roles**:
 
 ---
 
-## 4. Enfoque de Autenticación
-- **Flujo:** Pantalla de login (`P01`) → Autenticación de credenciales → Asignación segura de rol en el servidor → Redirección automática al área autorizada (`S01`, `T01` o `A01`).
-- Los usuarios **NO eligen libremente su rol** al iniciar sesión.
+## 4. Enfoque de Autenticación (Firebase Authentication)
+- **Flujo:** Pantalla de login (`P01`) → Autenticación con `signInWithEmailAndPassword` (Firebase Web SDK) → Obtención de ID Token → Verificación en servidor Node.js mediante Firebase Admin `verifyIdToken()` → Asignación segura de rol y permisos desde el repositorio de datos confiable → Redirección automática al área autorizada (`S01`, `T01` o `A01`).
+- Los usuarios **NO eligen su rol** en el login.
 - Soporta compatibilidad nativa con administradores de contraseñas, autocompletado del navegador (`autocomplete="username"`, `autocomplete="current-password"`) y copiar/pegar.
 - No utiliza CAPTCHAs ni desafíos cognitivos que impidan el acceso a los estudiantes.
 - Mensaje genérico de error de seguridad: *“Usuario o contraseña incorrectos. Intenta nuevamente.”*
 
 ---
 
-## 5. Cuentas de Demostración Configuradas
-| Rol | Nombre visible | Usuario / Alias | Correo Demo | Contraseña |
+## 5. Cuentas de Demostración
+| Rol | Nombre visible | Usuario / Alias | Correo Institucional Demo | Contraseña |
 | :--- | :--- | :--- | :--- | :--- |
-| **Estudiante** | Carlos M. (Estudiante Demo) | `estudiante.demo` | `estudiante@ipca.edu` | `estudiante123` |
-| **Docente** | Prof. María Elena (Docente Demo) | `docente.demo` | `docente@ipca.edu` | `docente123` |
-| **Admin** | Ing. Roberto Silva (Admin Demo) | `admin.demo` | `admin@ipca.edu` | `admin123` |
+| **Estudiante** | Carlos M. (Estudiante Demo) | `estudiante.demo` | `estudiante@ipca.edu` | Configurada vía Secret / Env |
+| **Docente** | Prof. María Elena (Docente Demo) | `docente.demo` | `docente@ipca.edu` | Configurada vía Secret / Env |
+| **Admin** | Ing. Roberto Silva (Admin Demo) | `admin.demo` | `admin@ipca.edu` | Configurada vía Secret / Env |
 
-*Nota:* En la pantalla de inicio de sesión se incluyen botones directos para autocompletar estas credenciales durante las evaluaciones de la prueba de concepto.
-
----
-
-## 6. Modelo de Autorización
-- El sistema aplica una política de **denegación por defecto (deny by default)**.
-- El componente frontend `RoleGuard` actúa como capa de usabilidad; cada solicitud al backend requiere un encabezado `Authorization: Bearer <token>` que es validado en el servidor Node.js.
-- Se verifican en cada llamada:
-  1. Usuario autenticado y sesión activa.
-  2. Cuenta en estado `active = true`.
-  3. Rol permitido para la ruta.
-  4. Permisos específicos (como `manage_catalog`).
+*Seguridad:* Las contraseñas nunca se exponen en el código fuente, la interfaz de usuario, ni en repositorios. En la pantalla de login, los chips de demostración solo seleccionan el identificador institucional del usuario.
 
 ---
 
-## 7. Modelo de Datos y Catálogo de Productos
-- **Moneda en centavos enteros (`priceCents`):** Para evitar errores de redondeo de punto flotante, todos los precios se almacenan en enteros (ej. $0.80 = 80 centavos).
-- **Disponibilidad (Stock binario):** El stock se modela exclusivamente mediante el campo booleano `active = true / false`. No existen cantidades numéricas (“20 en stock”) ni movimientos de inventario.
-- **Preservación histórica:** Los productos nunca se eliminan físicamente; desactivar un producto lo retira de la selección del estudiante pero preserva la integridad de los resultados históricos ya completados.
-- **Catálogo de 10 productos iniciales:**
-  - P001 — Agua — $0.50
-  - P002 — Jugo — $0.80
-  - P003 — Galletas — $0.75
-  - P004 — Yogur — $1.25
-  - P005 — Leche — $1.10
-  - P006 — Pan — $0.40
-  - P007 — Chocolate — $0.90
-  - P008 — Papas fritas — $1.00
-  - P009 — Caramelo — $0.10
-  - P010 — Atún — $1.50
+## 6. Modelo de Autorización (Deny by Default)
+- Cada solicitud a la API (`/api/*`) debe enviar el Firebase ID Token en el encabezado `Authorization: Bearer <ID_TOKEN>`.
+- El servidor Node.js valida:
+  1. Identidad de Firebase válida y no expirada (`verifyIdToken`).
+  2. Cuenta activa en la base de datos (`active = true`).
+  3. Rol autorizado para la operación (`requireRole`).
+  4. Permisos especiales para modificación de productos (`requireCatalogPermission`).
+- Catálogo: Solo pueden gestionar productos los docentes, administradores técnicos o estudiantes con permiso `manage_catalog = true`.
+- Endpoints sensibles:
+  - `/api/system/status`: Solo accesible por `technical_admin` autenticado.
+  - `/api/system/reset-demo`: Solo accesible por `technical_admin` autenticado y estrictamente deshabilitado cuando `NODE_ENV='production'`.
+  - `/api/health`: Público, pero limitado a `{ status: 'ok' }`.
+
+---
+
+## 7. Persistencia Desacoplada y Firestore
+La arquitectura aísla el almacenamiento detrás de la interfaz `IRepository`:
+- **Modo Deployed / Cloud Run (`DATA_PROVIDER=firestore`):** Almacenamiento persistente en Google Cloud Firestore mediante `firebase-admin/firestore`. No depende del sistema de archivos local efímero del contenedor.
+- **Modo Local / Fallback (`DATA_PROVIDER=json`):** Almacenamiento en archivo JSON local (`data/mini_ipca_store.json`) para desarrollo sin conexión.
+- **Colecciones en Firestore:** `products`, `users`, `profiles`, `activities`, `results`.
+- **Reglas de seguridad Firestore (`firestore.rules`):** Zero-Trust (`allow read, write: if false;`), bloqueando escrituras directas desde el cliente web. Toda mutación pasa obligatoriamente por la API del backend.
 
 ---
 
@@ -98,17 +93,40 @@ Se definen estrictamente **tres roles**:
 
 ---
 
-## 9. Arquitectura y Persistencia
-- **Frontend:** React 19 con TypeScript, Tailwind CSS y componentes modulares accesibles.
-- **Backend:** Servidor Node.js con Express, proporcionando la API REST de autenticación, catálogo, actividades, perfiles y resultados.
-- **Persistencia en la PoC:** Repositorio en disco local (`data/mini_ipca_store.json`), desacoplado completamente de los componentes React mediante interfaces abstractas.
-- **Utilidad Firebase Admin:** Se incluye `server/seed-firebase.ts` documentando el script de siembra para sincronizar usuarios y colecciones con Firebase Authentication y Cloud Firestore si se aprovisionan credenciales institucionales.
+## 9. Despliegue en Cloud Run y Compilación Reproducible
+### Puerto de escucha:
+El servidor implementa exactamente:
+```typescript
+const PORT = Number(process.env.PORT) || 3000;
+app.listen(PORT, '0.0.0.0', ...);
+```
+Cloud Run inyecta la variable `PORT` y el servidor escucha en ese puerto específico.
+
+### Comandos de compilación y ejecución:
+```bash
+# 1. Compilación completa para producción (Frontend Vite + Backend esbuild)
+npm run build
+
+# 2. Iniciar servidor compilado en producción
+npm run start
+```
+- `npm run build:client` compila el frontend en `dist/`.
+- `npm run build:server` compila y empaqueta `server.ts` y sus módulos en `server.js` (JavaScript puro ejecutable por Node).
+- `npm run start` ejecuta `node server.js`, que sirve los archivos estáticos de `dist/` y los endpoints de la API.
 
 ---
 
-## 10. Migración Futura a la Red Local del IPCA (LAN)
-La arquitectura de Mini-IPCA Store fue concebida con el siguiente objetivo institucional:
+## 10. Acción Única Requerida en la Consola de Firebase
+Si el proyecto se despliega por primera vez en un proyecto nuevo de Firebase:
+1. Ir a [Firebase Console](https://console.firebase.google.com/) y seleccionar el proyecto.
+2. Ingresar a **Authentication** → pestaña **Sign-in method** (Método de inicio de sesión).
+3. Hacer clic en **Correo electrónico/Contraseña** (Email/Password) y activar la casilla **Habilitar**.
+4. Guardar los cambios.
+*(Esta es una acción única requerida por las políticas de seguridad de Firebase para habilitar credenciales de correo/contraseña).*
 
+---
+
+## 11. Migración Futura a la Red Local del IPCA (LAN)
 ```text
 Tablets / Teléfonos (Frontend)
            ↓ (Wi-Fi / Red Local IPCA)
@@ -116,23 +134,4 @@ Servidor Node.js Local en IPCA (Puerto 3000)
            ↓
 Base de Datos Central Local (SQLite / PostgreSQL / Servidor Interno)
 ```
-
-### Pasos de migración del almacenamiento:
-1. Reemplazar la implementación en `server/db.ts` por el adaptador de base de datos local deseado (ej. PostgreSQL o SQLite con Drizzle ORM).
-2. Como todos los controladores y vistas consumen la API REST mediante DTOs estandarizados en centavos enteros, **el frontend React no requiere ninguna modificación**.
-3. El sistema operará 100% de manera autónoma dentro del aula y la tienda física del IPCA sin requerir conexión a Internet pública.
-
----
-
-## 11. Cómo Ejecutar el Proyecto
-```bash
-# Instalar dependencias
-npm install
-
-# Iniciar servidor de desarrollo full-stack (Puerto 3000)
-npm run dev
-
-# Compilar para producción
-npm run build
-npm run start
-```
+Como todos los componentes React consumen la API REST mediante DTOs estandarizados en centavos enteros, el frontend no requerirá cambios al migrar de Firestore a un servidor de base de datos local dentro del IPCA.

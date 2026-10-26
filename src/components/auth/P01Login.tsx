@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ScreenId } from '../../types';
-import { Store, Eye, EyeOff, LogIn, AlertCircle, KeyRound, Sparkles } from 'lucide-react';
+import { Store, Eye, EyeOff, LogIn, AlertCircle, Users } from 'lucide-react';
 
 interface P01LoginProps {
   onSuccess: (screen: ScreenId) => void;
@@ -27,7 +27,7 @@ export const P01Login: React.FC<P01LoginProps> = ({ onSuccess }) => {
     setIsSubmitting(true);
     try {
       const user = await login(username.trim(), password.trim());
-      // Automatic role redirection
+      // Automatic role redirection based on trusted server metadata
       if (user.role === 'student') {
         onSuccess('S01');
       } else if (user.role === 'teacher') {
@@ -38,15 +38,14 @@ export const P01Login: React.FC<P01LoginProps> = ({ onSuccess }) => {
         onSuccess('S01');
       }
     } catch (err: any) {
-      setErrorMessage('Usuario o contraseña incorrectos. Intenta nuevamente.');
+      setErrorMessage(err.message || 'Usuario o contraseña incorrectos. Intenta nuevamente.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDemoFill = (loginUser: string, loginPass: string) => {
+  const handleSelectDemoUsername = (loginUser: string) => {
     setUsername(loginUser);
-    setPassword(loginPass);
     setErrorMessage(null);
   };
 
@@ -154,21 +153,21 @@ export const P01Login: React.FC<P01LoginProps> = ({ onSuccess }) => {
             </button>
           </form>
 
-          {/* Demo Helper Chips (Educational & Evaluation Assistance) */}
+          {/* Institutional Demo Account Identifiers (No passwords exposed) */}
           <div className="mt-8 pt-6 border-t border-slate-200">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              <KeyRound className="w-4 h-4 text-slate-400" />
-              <span>Cuentas de demostración (clic para autocompletar)</span>
+              <Users className="w-4 h-4 text-slate-400" />
+              <span>Cuentas de evaluación (seleccionar usuario)</span>
             </div>
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => handleDemoFill('estudiante.demo', 'estudiante123')}
+                onClick={() => handleSelectDemoUsername('estudiante.demo')}
                 className="w-full text-left p-3 rounded-xl border border-sky-200 bg-sky-50/70 hover:bg-sky-100 transition-colors flex items-center justify-between cursor-pointer min-h-[48px]"
               >
                 <div>
                   <div className="text-sm font-bold text-sky-950">Estudiante Demo (Carlos)</div>
-                  <div className="text-xs text-sky-700 font-mono">estudiante.demo • estudiante123</div>
+                  <div className="text-xs text-sky-700 font-mono">estudiante.demo</div>
                 </div>
                 <span className="text-xs font-semibold bg-sky-200 text-sky-900 px-2.5 py-1 rounded-lg">
                   Vendedor
@@ -177,12 +176,12 @@ export const P01Login: React.FC<P01LoginProps> = ({ onSuccess }) => {
 
               <button
                 type="button"
-                onClick={() => handleDemoFill('docente.demo', 'docente123')}
+                onClick={() => handleSelectDemoUsername('docente.demo')}
                 className="w-full text-left p-3 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 transition-colors flex items-center justify-between cursor-pointer min-h-[48px]"
               >
                 <div>
                   <div className="text-sm font-bold text-emerald-950">Docente Demo (Prof. María)</div>
-                  <div className="text-xs text-emerald-700 font-mono">docente.demo • docente123</div>
+                  <div className="text-xs text-emerald-700 font-mono">docente.demo</div>
                 </div>
                 <span className="text-xs font-semibold bg-emerald-200 text-emerald-900 px-2.5 py-1 rounded-lg">
                   Docente
@@ -191,12 +190,12 @@ export const P01Login: React.FC<P01LoginProps> = ({ onSuccess }) => {
 
               <button
                 type="button"
-                onClick={() => handleDemoFill('admin.demo', 'admin123')}
+                onClick={() => handleSelectDemoUsername('admin.demo')}
                 className="w-full text-left p-3 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 transition-colors flex items-center justify-between cursor-pointer min-h-[48px]"
               >
                 <div>
                   <div className="text-sm font-bold text-purple-950">Admin Demo (Ing. Roberto)</div>
-                  <div className="text-xs text-purple-700 font-mono">admin.demo • admin123</div>
+                  <div className="text-xs text-purple-700 font-mono">admin.demo</div>
                 </div>
                 <span className="text-xs font-semibold bg-purple-200 text-purple-900 px-2.5 py-1 rounded-lg">
                   Admin

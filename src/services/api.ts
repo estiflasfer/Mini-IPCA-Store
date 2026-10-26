@@ -6,6 +6,7 @@ import {
   User,
   AuthSession,
 } from '../types';
+import { loginWithEmailAndPassword, logoutFirebase } from './firebase';
 
 const TOKEN_KEY = 'mini_ipca_token';
 const USER_KEY = 'mini_ipca_user';
@@ -69,14 +70,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  // Auth
-  async login(username: string, password: string): Promise<AuthSession> {
-    const res = await request<AuthSession>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    });
-    setStoredSession(res.token, res.user);
-    return res;
+  // Real Firebase Authentication
+  async login(identifier: string, password: string): Promise<AuthSession> {
+    const { idToken } = await loginWithEmailAndPassword(identifier, password);
+    // Store token so subsequent requests carry Authorization: Bearer <idToken>
+    localStorage.setItem(TOKEN_KEY, idToken);
+
+    // Retrieve trusted application role and metadata from backend
+    const me = await api.getMe();
+    setStoredSession(idToken, me.user);
+
+    return {
+      token: idToken,
+      user: me.user,
+      profile: me.profile,
+    };
   },
 
   async logout(): Promise<void> {
@@ -85,6 +93,7 @@ export const api = {
     } catch {
       // ignore
     } finally {
+      await logoutFirebase();
       clearStoredSession();
     }
   },
@@ -177,7 +186,6 @@ export const api = {
   async createUser(data: {
     username: string;
     email: string;
-    password: string;
     displayName: string;
     role: string;
     permissions?: string[];
@@ -189,14 +197,14 @@ export const api = {
     });
   },
 
-  async updateUser(id: string, updates: Partial<User & { password?: string }>): Promise<User> {
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
     return request<User>(`/api/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
   },
 
-  // System & Reset
+  // System
   async getSystemStatus(): Promise<any> {
     return request<any>('/api/system/status');
   },

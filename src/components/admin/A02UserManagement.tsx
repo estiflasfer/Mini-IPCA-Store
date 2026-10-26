@@ -33,7 +33,6 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
   const [formUsername, setFormUsername] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formDisplayName, setFormDisplayName] = useState('');
-  const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<Role>('student');
   const [formManageCatalog, setFormManageCatalog] = useState(false);
 
@@ -41,7 +40,6 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
     setFormUsername('');
     setFormEmail('');
     setFormDisplayName('');
-    setFormPassword('');
     setFormRole('student');
     setFormManageCatalog(false);
     setIsCreating(true);
@@ -55,8 +53,7 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
     if (
       !formUsername.trim() ||
       !formEmail.trim() ||
-      !formDisplayName.trim() ||
-      !formPassword.trim()
+      !formDisplayName.trim()
     ) {
       setErrorMessage('Todos los campos son obligatorios.');
       return;
@@ -68,7 +65,6 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
         username: formUsername.trim().toLowerCase(),
         email: formEmail.trim().toLowerCase(),
         displayName: formDisplayName.trim(),
-        password: formPassword.trim(),
         role: formRole,
         permissions: formManageCatalog ? ['manage_catalog'] : [],
         active: true,
@@ -335,20 +331,6 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
                   value={formEmail}
                   onChange={(e) => setFormEmail(e.target.value)}
                   placeholder="ej. juan@ipca.edu"
-                  className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-300 text-slate-900 focus:border-purple-600 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Contraseña de acceso
-                </label>
-                <input
-                  type="password"
-                  value={formPassword}
-                  onChange={(e) => setFormPassword(e.target.value)}
-                  placeholder="••••••••"
                   className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-300 text-slate-900 focus:border-purple-600 focus:outline-none"
                   required
                 />

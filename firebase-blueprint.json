@@ -1,0 +1,120 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Producto de la tienda IPCA con precio en centavos enteros y disponibilidad activa/inactiva",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "priceCents": { "type": "integer" },
+        "visualKey": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "name", "priceCents", "visualKey", "active"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Usuario institucional con rol y permisos asignados",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authUid": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher", "technical_admin"] },
+        "permissions": { "type": "array" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "username", "email", "displayName", "role", "active"]
+    },
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "Configuración de andamiaje pedagógico y apoyos para el estudiante",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "difficultyLevel": { "type": "string", "enum": ["facil", "medio", "avanzado"] },
+        "choiceCount": { "type": "integer", "enum": [2, 4] },
+        "showHint": { "type": "boolean" },
+        "showExample": { "type": "boolean" },
+        "textToSpeechEnabled": { "type": "boolean" },
+        "pictogramsEnabled": { "type": "boolean" },
+        "socialSupportsEnabled": { "type": "boolean" },
+        "scaffoldingLevel": { "type": "string", "enum": ["high", "medium", "low"] },
+        "largeText": { "type": "boolean" },
+        "highContrast": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "difficultyLevel", "choiceCount", "scaffoldingLevel"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Escenario formativo de práctica en caja y tienda",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "moduleTitle": { "type": "string" },
+        "title": { "type": "string" },
+        "instruction": { "type": "string" },
+        "lineItems": { "type": "array" },
+        "paymentAmountCents": { "type": "integer" },
+        "difficulty": { "type": "string" },
+        "helpLevel": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "type", "moduleTitle", "title", "instruction", "lineItems", "paymentAmountCents", "active"]
+    },
+    "HistoricalResult": {
+      "title": "HistoricalResult",
+      "description": "Registro inmutable con snapshot de precios y desempeño de la venta",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "activityId": { "type": "string" },
+        "lineItemsSnapshot": { "type": "array" },
+        "totalExpectedCents": { "type": "integer" },
+        "totalAnsweredCents": { "type": "integer" },
+        "paymentAmountCents": { "type": "integer" },
+        "changeExpectedCents": { "type": "integer" },
+        "changeAnsweredCents": { "type": "integer" },
+        "attempts": { "type": "integer" },
+        "correct": { "type": "boolean" },
+        "supportsUsed": { "type": "array" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "activityId", "lineItemsSnapshot", "totalExpectedCents", "completedAt"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Catálogo de productos de la tienda"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Cuentas y roles del sistema"
+    },
+    "/profiles/{userId}": {
+      "schema": "StudentProfile",
+      "description": "Perfiles y apoyos personalizados de estudiantes"
+    },
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Actividades y escenarios de venta"
+    },
+    "/results/{resultId}": {
+      "schema": "HistoricalResult",
+      "description": "Resultados completados con snapshot inmutable"
+    }
+  }
+}

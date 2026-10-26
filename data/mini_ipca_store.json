@@ -5,7 +5,6 @@
       "authUid": "auth_student_1",
       "username": "estudiante.demo",
       "email": "estudiante@ipca.edu",
-      "passwordHash": "estudiante123",
       "displayName": "Carlos M. (Estudiante Demo)",
       "role": "student",
       "permissions": [],
@@ -18,7 +17,6 @@
       "authUid": "auth_teacher_1",
       "username": "docente.demo",
       "email": "docente@ipca.edu",
-      "passwordHash": "docente123",
       "displayName": "Prof. María Elena (Docente Demo)",
       "role": "teacher",
       "permissions": [
@@ -33,7 +31,6 @@
       "authUid": "auth_admin_1",
       "username": "admin.demo",
       "email": "admin@ipca.edu",
-      "passwordHash": "admin123",
       "displayName": "Ing. Roberto Silva (Admin Demo)",
       "role": "technical_admin",
       "permissions": [
@@ -74,12 +71,12 @@
     {
       "id": "P002",
       "name": "Jugo",
-      "priceCents": 90,
+      "priceCents": 80,
       "visualKey": "juice",
       "active": true,
       "createdAt": "2026-01-01T08:00:00Z",
-      "updatedAt": "2026-10-25T23:56:11.485Z",
-      "updatedBy": "Prof. María Elena (Docente Demo)"
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
     },
     {
       "id": "P003",

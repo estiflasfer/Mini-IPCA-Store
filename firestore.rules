@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Zero-Trust: Direct client reads and writes are blocked.
+    // All access and business logic are enforced exclusively by the authenticated Node.js backend API.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

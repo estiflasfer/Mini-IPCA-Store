@@ -1,73 +1,141 @@
 /**
  * Mini-IPCA Store — Firebase Admin Seeder Utility
  * 
- * Este script permite poblar o sincronizar los 3 usuarios de demostración y los 10 productos
- * iniciales en Firebase Authentication y Cloud Firestore si se cuenta con credenciales
- * institucionales de Firebase Admin SDK.
+ * Permite aprovisionar o actualizar las cuentas institucionales de demostración
+ * (Estudiante, Docente, Admin) en Firebase Authentication y sus roles en la base de datos.
+ * 
+ * SEGURIDAD:
+ * Las contraseñas iniciales NUNCA se escriben en código fuente ni se suben a repositorios.
+ * Se leen exclusivamente desde variables de entorno seguras:
+ *   - DEMO_ESTUDIANTE_PASSWORD
+ *   - DEMO_DOCENTE_PASSWORD
+ *   - DEMO_ADMIN_PASSWORD
  * 
  * USO:
- * 1. Configurar la variable de entorno GOOGLE_APPLICATION_CREDENTIALS con la ruta al serviceAccountKey.json
- * 2. Ejecutar: npx tsx server/seed-firebase.ts
+ *   DEMO_ESTUDIANTE_PASSWORD="secret" DEMO_DOCENTE_PASSWORD="secret" DEMO_ADMIN_PASSWORD="secret" npx tsx server/seed-firebase.ts
  */
 
-export interface FirebaseSeedUser {
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth, type UserRecord as FirebaseUserRecord } from 'firebase-admin/auth';
+import { db } from './repository.js';
+
+if (!getApps().length) {
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'mini-ipca-store';
+  initializeApp({ projectId });
+}
+
+export interface DemoUserSpec {
   email: string;
-  password: string;
+  username: string;
   displayName: string;
   role: 'student' | 'teacher' | 'technical_admin';
   permissions: string[];
+  envPasswordKey: string;
 }
 
-export const DEMO_USERS_TO_SEED: FirebaseSeedUser[] = [
+export const DEMO_USERS_SPECS: DemoUserSpec[] = [
   {
     email: 'estudiante@ipca.edu',
-    password: 'estudiante123',
+    username: 'estudiante.demo',
     displayName: 'Carlos M. (Estudiante Demo)',
     role: 'student',
     permissions: [],
+    envPasswordKey: 'DEMO_ESTUDIANTE_PASSWORD',
   },
   {
     email: 'docente@ipca.edu',
-    password: 'docente123',
+    username: 'docente.demo',
     displayName: 'Prof. María Elena (Docente Demo)',
     role: 'teacher',
     permissions: ['manage_catalog'],
+    envPasswordKey: 'DEMO_DOCENTE_PASSWORD',
   },
   {
     email: 'admin@ipca.edu',
-    password: 'admin123',
+    username: 'admin.demo',
     displayName: 'Ing. Roberto Silva (Admin Demo)',
     role: 'technical_admin',
     permissions: ['manage_catalog'],
+    envPasswordKey: 'DEMO_ADMIN_PASSWORD',
   },
 ];
 
-export const DEMO_PRODUCTS_TO_SEED = [
-  { id: 'P001', name: 'Agua', priceCents: 50, visualKey: 'water', active: true },
-  { id: 'P002', name: 'Jugo', priceCents: 80, visualKey: 'juice', active: true },
-  { id: 'P003', name: 'Galletas', priceCents: 75, visualKey: 'cookies', active: true },
-  { id: 'P004', name: 'Yogur', priceCents: 125, visualKey: 'yogurt', active: true },
-  { id: 'P005', name: 'Leche', priceCents: 110, visualKey: 'milk', active: true },
-  { id: 'P006', name: 'Pan', priceCents: 40, visualKey: 'bread', active: true },
-  { id: 'P007', name: 'Chocolate', priceCents: 90, visualKey: 'chocolate', active: true },
-  { id: 'P008', name: 'Papas fritas', priceCents: 100, visualKey: 'chips', active: true },
-  { id: 'P009', name: 'Caramelo', priceCents: 10, visualKey: 'candy', active: true },
-  { id: 'P010', name: 'Atún', priceCents: 150, visualKey: 'tuna', active: true },
-];
-
 export async function runFirebaseSeed() {
-  console.log('--- Mini-IPCA Store: Firebase Seed Utility ---');
-  console.log('Usuarios preparados para inicialización en Firebase Auth:');
-  DEMO_USERS_TO_SEED.forEach(u => {
-    console.log(` • [${u.role.toUpperCase()}] ${u.displayName} -> Email: ${u.email}`);
-  });
-  console.log('Productos preparados para inicialización en Firestore:');
-  DEMO_PRODUCTS_TO_SEED.forEach(p => {
-    console.log(` • [${p.id}] ${p.name} -> $${(p.priceCents / 100).toFixed(2)} (Activo: ${p.active})`);
-  });
-  console.log('Para conectar con Firebase Admin en producción, importe firebase-admin e inicialice con initializeApp().');
+  console.log('=== Mini-IPCA Store — Inicialización de Cuentas Firebase ===');
+
+  for (const spec of DEMO_USERS_SPECS) {
+    const password = process.env[spec.envPasswordKey];
+    console.log(`\nProcesando cuenta: ${spec.displayName} (${spec.email})`);
+
+    let firebaseUser: FirebaseUserRecord | null = null;
+    const auth = getAuth();
+
+    try {
+      firebaseUser = await auth.getUserByEmail(spec.email);
+      console.log(` • Usuario existente encontrado en Firebase Auth (UID: ${firebaseUser.uid})`);
+      if (password) {
+        await auth.updateUser(firebaseUser.uid, {
+          password,
+          displayName: spec.displayName,
+        });
+        console.log(` • Contraseña actualizada desde variable de entorno [${spec.envPasswordKey}].`);
+      } else {
+        console.log(` • [AVISO] Variable ${spec.envPasswordKey} no provista; contraseña no alterada.`);
+      }
+    } catch (err: any) {
+      if (err.code === 'auth/user-not-found') {
+        if (!password) {
+          console.error(
+            ` • [ERROR] No es posible crear usuario nuevo sin contraseña. Defina la variable de entorno ${spec.envPasswordKey}.`
+          );
+          continue;
+        }
+        firebaseUser = await auth.createUser({
+          email: spec.email,
+          password,
+          displayName: spec.displayName,
+          emailVerified: true,
+        });
+        console.log(` • Usuario creado exitosamente en Firebase Auth (UID: ${firebaseUser.uid}).`);
+      } else {
+        console.error(` • Error al consultar Firebase Auth para ${spec.email}:`, err.message);
+        continue;
+      }
+    }
+
+    if (firebaseUser) {
+      // Create or update application metadata in repository
+      let existingAppUser = await db.getUserByEmail(spec.email);
+      if (existingAppUser) {
+        await db.updateUser(existingAppUser.id, {
+          authUid: firebaseUser.uid,
+          role: spec.role,
+          permissions: spec.permissions,
+          active: true,
+          displayName: spec.displayName,
+        });
+        console.log(` • Metadatos de rol [${spec.role}] sincronizados en el repositorio.`);
+      } else {
+        await db.createUser({
+          authUid: firebaseUser.uid,
+          username: spec.username,
+          email: spec.email,
+          displayName: spec.displayName,
+          role: spec.role,
+          permissions: spec.permissions,
+          active: true,
+        });
+        console.log(` • Metadatos de usuario creados en el repositorio.`);
+      }
+    }
+  }
+
+  console.log('\n=== Proceso de siembra finalizado. ===');
 }
 
 if (process.argv[1]?.includes('seed-firebase')) {
-  runFirebaseSeed().catch(console.error);
+  runFirebaseSeed().catch((e) => {
+    console.error('Error durante la ejecución del seeder:', e);
+    process.exit(1);
+  });
 }
