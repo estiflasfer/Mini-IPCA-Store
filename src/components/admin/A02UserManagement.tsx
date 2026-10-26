@@ -35,6 +35,7 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
   const [formDisplayName, setFormDisplayName] = useState('');
   const [formRole, setFormRole] = useState<Role>('student');
   const [formManageCatalog, setFormManageCatalog] = useState(false);
+  const [formTemporaryPassword, setFormTemporaryPassword] = useState('');
 
   const handleOpenCreate = () => {
     setFormUsername('');
@@ -42,6 +43,7 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
     setFormDisplayName('');
     setFormRole('student');
     setFormManageCatalog(false);
+    setFormTemporaryPassword('');
     setIsCreating(true);
     setErrorMessage(null);
   };
@@ -53,9 +55,15 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
     if (
       !formUsername.trim() ||
       !formEmail.trim() ||
-      !formDisplayName.trim()
+      !formDisplayName.trim() ||
+      !formTemporaryPassword.trim()
     ) {
       setErrorMessage('Todos los campos son obligatorios.');
+      return;
+    }
+
+    if (formTemporaryPassword.trim().length < 6) {
+      setErrorMessage('La contraseña temporal debe contener al menos 6 caracteres.');
       return;
     }
 
@@ -68,9 +76,12 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
         role: formRole,
         permissions: formManageCatalog ? ['manage_catalog'] : [],
         active: true,
+        temporaryPassword: formTemporaryPassword.trim(),
       });
 
-      setSuccessMessage(`Usuario “${formDisplayName}” creado correctamente.`);
+      // Clear sensitive form state immediately after success
+      setFormTemporaryPassword('');
+      setSuccessMessage(`Usuario “${formDisplayName}” creado correctamente en Firebase Auth y base de datos.`);
       setIsCreating(false);
       onRefreshUsers();
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -334,6 +345,25 @@ export const A02UserManagement: React.FC<A02UserManagementProps> = ({
                   className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-300 text-slate-900 focus:border-purple-600 focus:outline-none"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Contraseña temporal de acceso (mínimo 6 caracteres)
+                </label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={formTemporaryPassword}
+                  onChange={(e) => setFormTemporaryPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl border border-slate-300 text-slate-900 focus:border-purple-600 focus:outline-none"
+                  required
+                  minLength={6}
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Se registrará en Firebase Authentication para habilitar el inicio de sesión.
+                </p>
               </div>
 
               <div>

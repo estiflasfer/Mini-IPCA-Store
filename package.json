@@ -11,6 +11,7 @@
     "start": "node server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
+    "seed:firebase": "tsx server/seed-firebase.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

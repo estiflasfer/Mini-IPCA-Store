@@ -86,7 +86,7 @@ export interface HistoricalResult {
 }
 
 export interface AuthSession {
-  token: string;
+  token?: string;
   user: User;
   profile?: StudentProfile;
 }

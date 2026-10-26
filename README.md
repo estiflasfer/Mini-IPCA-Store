@@ -38,8 +38,10 @@ Se definen estrictamente **tres roles**:
 ---
 
 ## 4. Enfoque de Autenticación (Firebase Authentication)
-- **Flujo:** Pantalla de login (`P01`) → Autenticación con `signInWithEmailAndPassword` (Firebase Web SDK) → Obtención de ID Token → Verificación en servidor Node.js mediante Firebase Admin `verifyIdToken()` → Asignación segura de rol y permisos desde el repositorio de datos confiable → Redirección automática al área autorizada (`S01`, `T01` o `A01`).
+- **Flujo:** Pantalla de login (`P01`) → Autenticación con `signInWithEmailAndPassword` (Firebase Web SDK) → Obtención dinámica de ID Token mediante `auth.currentUser.getIdToken()` → Verificación en servidor Node.js mediante Firebase Admin `verifyIdToken()` → Asignación segura de rol y permisos desde el repositorio de datos confiable → Redirección automática al área autorizada (`S01`, `T01` o `A01`).
 - Los usuarios **NO eligen su rol** en el login.
+- **Persistencia de sesión (`browserSessionPersistence`):** Pensada específicamente para dispositivos compartidos en el aula del IPCA. El cierre del navegador o de la pestaña finaliza automáticamente la sesión sin persistir tokens en `localStorage`.
+- **Restauración de sesión:** La recarga de la página se restaura mediante el observador nativo `onAuthStateChanged` de Firebase Auth como única fuente de verdad.
 - Soporta compatibilidad nativa con administradores de contraseñas, autocompletado del navegador (`autocomplete="username"`, `autocomplete="current-password"`) y copiar/pegar.
 - No utiliza CAPTCHAs ni desafíos cognitivos que impidan el acceso a los estudiantes.
 - Mensaje genérico de error de seguridad: *“Usuario o contraseña incorrectos. Intenta nuevamente.”*
@@ -54,6 +56,16 @@ Se definen estrictamente **tres roles**:
 | **Admin** | Ing. Roberto Silva (Admin Demo) | `admin.demo` | `admin@ipca.edu` | Configurada vía Secret / Env |
 
 *Seguridad:* Las contraseñas nunca se exponen en el código fuente, la interfaz de usuario, ni en repositorios. En la pantalla de login, los chips de demostración solo seleccionan el identificador institucional del usuario.
+
+### Inicialización segura de cuentas demo (`seed:firebase`):
+Para aprovisionar o actualizar las cuentas institucionales en Firebase Auth y sincronizarlas con la base de datos:
+```bash
+DEMO_ESTUDIANTE_PASSWORD="secretPassword1" \
+DEMO_DOCENTE_PASSWORD="secretPassword2" \
+DEMO_ADMIN_PASSWORD="secretPassword3" \
+npm run seed:firebase
+```
+Este script es idempotente (seguro de ejecutar múltiples veces) y jamás persiste las contraseñas en bases de datos ni en logs.
 
 ---
 

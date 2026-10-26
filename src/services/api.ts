@@ -5,37 +5,9 @@ import {
   StudentProfile,
   User,
   AuthSession,
+  Role,
 } from '../types';
-import { loginWithEmailAndPassword, logoutFirebase } from './firebase';
-
-const TOKEN_KEY = 'mini_ipca_token';
-const USER_KEY = 'mini_ipca_user';
-
-export function getStoredToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setStoredSession(token: string, user: User) {
-  try {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-  } catch {
-    // ignore
-  }
-}
-
-export function clearStoredSession() {
-  try {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-  } catch {
-    // ignore
-  }
-}
+import { loginWithEmailAndPassword, logoutFirebase, getFreshIdToken } from './firebase';
 
 export function formatCents(cents: number): string {
   const dollars = (cents / 100).toFixed(2).replace('.', ',');
@@ -43,7 +15,8 @@ export function formatCents(cents: number): string {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getStoredToken();
+  // Obtain fresh Firebase ID Token dynamically for every protected API request
+  const token = await getFreshIdToken();
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
   if (token) {
@@ -72,16 +45,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   // Real Firebase Authentication
   async login(identifier: string, password: string): Promise<AuthSession> {
-    const { idToken } = await loginWithEmailAndPassword(identifier, password);
-    // Store token so subsequent requests carry Authorization: Bearer <idToken>
-    localStorage.setItem(TOKEN_KEY, idToken);
-
+    await loginWithEmailAndPassword(identifier, password);
     // Retrieve trusted application role and metadata from backend
     const me = await api.getMe();
-    setStoredSession(idToken, me.user);
-
     return {
-      token: idToken,
       user: me.user,
       profile: me.profile,
     };
@@ -94,7 +61,6 @@ export const api = {
       // ignore
     } finally {
       await logoutFirebase();
-      clearStoredSession();
     }
   },
 
@@ -102,34 +68,21 @@ export const api = {
     return request<{ user: User; profile?: StudentProfile }>('/api/auth/me');
   },
 
-  // Products
+  // Products & Catalog (Student sales view & Teacher stock management)
   async getProducts(): Promise<Product[]> {
     return request<Product[]>('/api/products');
   },
 
-  async createProduct(data: {
-    name: string;
-    priceCents: number;
-    visualKey?: string;
-    imageUrl?: string;
-    active?: boolean;
-  }): Promise<Product> {
+  async createProduct(
+    product: Partial<Product> & { name: string; priceCents: number }
+  ): Promise<Product> {
     return request<Product>('/api/products', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(product),
     });
   },
 
-  async updateProduct(
-    id: string,
-    updates: {
-      name?: string;
-      priceCents?: number;
-      visualKey?: string;
-      imageUrl?: string;
-      active?: boolean;
-    }
-  ): Promise<Product> {
+  async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
     return request<Product>(`/api/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -137,14 +90,15 @@ export const api = {
   },
 
   async toggleProductActive(id: string): Promise<Product> {
-    return request<Product>(`/api/products/${id}/toggle-active`, {
-      method: 'PATCH',
-    });
+    const products = await api.getProducts();
+    const target = products.find((p) => p.id === id);
+    const newActive = target ? !target.active : true;
+    return api.updateProduct(id, { active: newActive });
   },
 
-  // Activities
-  async getActivities(): Promise<(Activity & { expectedTotalCents: number; expectedChangeCents: number; hasInactiveProduct: boolean })[]> {
-    return request<(Activity & { expectedTotalCents: number; expectedChangeCents: number; hasInactiveProduct: boolean })[]>('/api/activities');
+  // Activities (Sales training scenarios)
+  async getActivities(): Promise<Activity[]> {
+    return request<Activity[]>('/api/activities');
   },
 
   async updateActivity(id: string, updates: Partial<Activity>): Promise<Activity> {
@@ -154,19 +108,27 @@ export const api = {
     });
   },
 
-  // Profiles
-  async getProfile(userId: string): Promise<StudentProfile> {
+  // Student Profiles & Pedagogical Scaffolding
+  async getStudentProfile(userId: string): Promise<StudentProfile> {
     return request<StudentProfile>(`/api/profiles/${userId}`);
   },
 
-  async updateProfile(userId: string, updates: Partial<StudentProfile>): Promise<StudentProfile> {
+  async getProfile(userId: string): Promise<StudentProfile> {
+    return api.getStudentProfile(userId);
+  },
+
+  async updateStudentProfile(userId: string, updates: Partial<StudentProfile>): Promise<StudentProfile> {
     return request<StudentProfile>(`/api/profiles/${userId}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
   },
 
-  // Results
+  async updateProfile(userId: string, updates: Partial<StudentProfile>): Promise<StudentProfile> {
+    return api.updateStudentProfile(userId, updates);
+  },
+
+  // Historical Results & Performance
   async getResults(): Promise<HistoricalResult[]> {
     return request<HistoricalResult[]>('/api/results');
   },
@@ -187,9 +149,10 @@ export const api = {
     username: string;
     email: string;
     displayName: string;
-    role: string;
+    role: Role;
     permissions?: string[];
     active?: boolean;
+    temporaryPassword?: string;
   }): Promise<User> {
     return request<User>('/api/users', {
       method: 'POST',

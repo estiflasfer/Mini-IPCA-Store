@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, StudentProfile, Role } from '../types';
-import { api, getStoredToken, clearStoredSession } from '../services/api';
+import { User, StudentProfile } from '../types';
+import { api } from '../services/api';
+import { auth, onAuthStateChanged } from '../services/firebase';
 
 interface AuthContextType {
   user: User | null;
   profile: StudentProfile | null;
-  token: string | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
@@ -23,36 +23,55 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [token, setToken] = useState<string | null>(getStoredToken());
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const refreshMe = async () => {
     try {
-      const storedToken = getStoredToken();
-      if (!storedToken) {
-        setUser(null);
-        setProfile(null);
-        setToken(null);
-        setIsLoading(false);
-        return;
-      }
       const data = await api.getMe();
       setUser(data.user);
       if (data.profile) setProfile(data.profile);
-      setToken(storedToken);
     } catch (err) {
-      console.warn('Sesión no válida o expirada:', err);
-      clearStoredSession();
       setUser(null);
       setProfile(null);
-      setToken(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    refreshMe();
+    // Firebase Auth is the single source of truth for session persistence.
+    // onAuthStateChanged restores the user automatically after browser reload.
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const data = await api.getMe();
+          setUser(data.user);
+          if (data.profile) setProfile(data.profile);
+        } catch (err) {
+          console.warn('Error al sincronizar datos del usuario con el backend:', err);
+          setUser(null);
+          setProfile(null);
+        }
+      } else {
+        // In local development, check if dev session was initiated
+        if (import.meta.env.DEV && sessionStorage.getItem('mini_ipca_dev_email')) {
+          try {
+            const data = await api.getMe();
+            setUser(data.user);
+            if (data.profile) setProfile(data.profile);
+          } catch {
+            setUser(null);
+            setProfile(null);
+          }
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const login = async (username: string, password: string): Promise<User> => {
@@ -60,7 +79,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const session = await api.login(username, password);
       setUser(session.user);
-      setToken(session.token);
       if (session.profile) {
         setProfile(session.profile);
       }
@@ -77,7 +95,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setUser(null);
       setProfile(null);
-      setToken(null);
       setIsLoading(false);
     }
   };
@@ -101,7 +118,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         profile,
-        token,
         isLoading,
         login,
         logout,

@@ -558,15 +558,22 @@ export class JsonRepository implements IRepository {
 // ----------------------------------------------------
 // 2. Firestore Repository (Cloud Run / Deployed Mode)
 // ----------------------------------------------------
+// 2. Cloud Firestore Repository (Production Cloud Provider)
+// ----------------------------------------------------
 export class FirestoreRepository implements IRepository {
   private firestore: Firestore;
   private initialized = false;
+  private fallback: JsonRepository | null = null;
 
   constructor() {
     if (!getApps().length) {
-      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'mini-ipca-store';
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
       try {
-        initializeApp({ projectId });
+        if (projectId) {
+          initializeApp({ projectId });
+        } else {
+          initializeApp();
+        }
       } catch (err) {
         console.warn('Firebase Admin initializeApp warning:', err);
       }
@@ -575,6 +582,9 @@ export class FirestoreRepository implements IRepository {
   }
 
   getProviderName(): string {
+    if (this.fallback) {
+      return 'FirestoreRepository (fallback a JsonRepository en desarrollo)';
+    }
     return 'FirestoreRepository (Google Cloud Firestore)';
   }
 
@@ -606,19 +616,31 @@ export class FirestoreRepository implements IRepository {
         console.log('FirestoreRepository: initialization complete.');
       }
       this.initialized = true;
-    } catch (err) {
-      console.warn('FirestoreRepository: ensureInitialized warning:', err);
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('FirestoreRepository: Error crítico de conexión a Firestore en producción:', err);
+        throw new Error(
+          `[Mini-IPCA Store] Error crítico en Firestore: No se pudo conectar a Cloud Firestore en producción (${err.message}). Verifique que la API de Cloud Firestore esté habilitada en el proyecto de GCP.`
+        );
+      }
+      console.warn(
+        `[Mini-IPCA Store] Aviso en desarrollo: No se pudo conectar a Cloud Firestore (${err.message}). Cambiando a JsonRepository como contingencia de desarrollo local.`
+      );
+      this.fallback = new JsonRepository();
+      this.initialized = true;
     }
   }
 
   async getUsers(): Promise<UserRecord[]> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUsers();
     const snap = await this.firestore.collection('users').get();
-    return snap.docs.map((d) => d.data() as UserRecord);
+    return snap.docs.map((d: any) => d.data() as UserRecord);
   }
 
   async getUserById(id: string): Promise<UserRecord | undefined> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserById(id);
     const doc = await this.firestore.collection('users').doc(id).get();
     if (!doc.exists) return undefined;
     return doc.data() as UserRecord;
@@ -626,6 +648,7 @@ export class FirestoreRepository implements IRepository {
 
   async getUserByAuthUid(authUid: string): Promise<UserRecord | undefined> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserByAuthUid(authUid);
     const snap = await this.firestore.collection('users').where('authUid', '==', authUid).limit(1).get();
     if (snap.empty) return undefined;
     return snap.docs[0].data() as UserRecord;
@@ -633,14 +656,15 @@ export class FirestoreRepository implements IRepository {
 
   async getUserByEmail(email: string): Promise<UserRecord | undefined> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserByEmail(email);
     const clean = email.trim().toLowerCase();
     const snap = await this.firestore.collection('users').where('email', '==', clean).limit(1).get();
     if (snap.empty) return undefined;
     return snap.docs[0].data() as UserRecord;
   }
-
   async getUserByLogin(login: string): Promise<UserRecord | undefined> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserByLogin(login);
     const clean = login.trim().toLowerCase();
     // Check by username
     let snap = await this.firestore.collection('users').where('username', '==', clean).limit(1).get();
@@ -663,6 +687,7 @@ export class FirestoreRepository implements IRepository {
 
   async createUser(user: Omit<UserRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<UserRecord> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.createUser(user);
     const id = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newRecord: UserRecord = {
       ...user,
@@ -676,6 +701,7 @@ export class FirestoreRepository implements IRepository {
 
   async updateUser(id: string, updates: Partial<UserRecord>): Promise<UserRecord | null> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateUser(id, updates);
     const ref = this.firestore.collection('users').doc(id);
     const doc = await ref.get();
     if (!doc.exists) return null;
@@ -690,6 +716,7 @@ export class FirestoreRepository implements IRepository {
 
   async getProfileByUserId(userId: string): Promise<StudentProfileRecord | undefined> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getProfileByUserId(userId);
     const doc = await this.firestore.collection('profiles').doc(userId).get();
     if (doc.exists) {
       return doc.data() as StudentProfileRecord;
@@ -715,6 +742,7 @@ export class FirestoreRepository implements IRepository {
 
   async updateProfile(userId: string, updates: Partial<StudentProfileRecord>): Promise<StudentProfileRecord> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateProfile(userId, updates);
     const ref = this.firestore.collection('profiles').doc(userId);
     const doc = await ref.get();
     const existing = doc.exists ? (doc.data() as StudentProfileRecord) : {
@@ -738,12 +766,14 @@ export class FirestoreRepository implements IRepository {
 
   async getProducts(): Promise<ProductRecord[]> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getProducts();
     const snap = await this.firestore.collection('products').get();
-    return snap.docs.map((d) => d.data() as ProductRecord);
+    return snap.docs.map((d: any) => d.data() as ProductRecord);
   }
 
   async getProductById(id: string): Promise<ProductRecord | undefined> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getProductById(id);
     const doc = await this.firestore.collection('products').doc(id).get();
     if (!doc.exists) return undefined;
     return doc.data() as ProductRecord;
@@ -751,6 +781,7 @@ export class FirestoreRepository implements IRepository {
 
   async createProduct(product: Omit<ProductRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProductRecord> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.createProduct(product);
     const all = await this.getProducts();
     const id = `P${String(all.length + 1).padStart(3, '0')}`;
     const newRecord: ProductRecord = {
@@ -765,6 +796,7 @@ export class FirestoreRepository implements IRepository {
 
   async updateProduct(id: string, updates: Partial<ProductRecord>): Promise<ProductRecord | null> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateProduct(id, updates);
     const ref = this.firestore.collection('products').doc(id);
     const doc = await ref.get();
     if (!doc.exists) return null;
@@ -779,12 +811,14 @@ export class FirestoreRepository implements IRepository {
 
   async getActivities(): Promise<ActivityRecord[]> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getActivities();
     const snap = await this.firestore.collection('activities').get();
-    return snap.docs.map((d) => d.data() as ActivityRecord);
+    return snap.docs.map((d: any) => d.data() as ActivityRecord);
   }
 
   async getActivityById(id: string): Promise<ActivityRecord | undefined> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getActivityById(id);
     const doc = await this.firestore.collection('activities').doc(id).get();
     if (!doc.exists) return undefined;
     return doc.data() as ActivityRecord;
@@ -792,6 +826,7 @@ export class FirestoreRepository implements IRepository {
 
   async updateActivity(id: string, updates: Partial<ActivityRecord>): Promise<ActivityRecord | null> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateActivity(id, updates);
     const ref = this.firestore.collection('activities').doc(id);
     const doc = await ref.get();
     if (!doc.exists) return null;
@@ -802,12 +837,14 @@ export class FirestoreRepository implements IRepository {
 
   async getResults(): Promise<ResultRecord[]> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getResults();
     const snap = await this.firestore.collection('results').orderBy('completedAt', 'desc').get();
-    return snap.docs.map((d) => d.data() as ResultRecord);
+    return snap.docs.map((d: any) => d.data() as ResultRecord);
   }
 
   async saveResult(result: Omit<ResultRecord, 'id' | 'completedAt'>): Promise<ResultRecord> {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.saveResult(result);
     const id = `RES-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const newRecord: ResultRecord = {
       ...result,
@@ -819,6 +856,7 @@ export class FirestoreRepository implements IRepository {
   }
 
   async resetToDefaults(): Promise<void> {
+    if (this.fallback) return this.fallback.resetToDefaults();
     const batch = this.firestore.batch();
     for (const p of INITIAL_PRODUCTS) {
       batch.set(this.firestore.collection('products').doc(p.id), p);
@@ -844,14 +882,23 @@ export class FirestoreRepository implements IRepository {
 // ----------------------------------------------------
 export function createRepository(): IRepository {
   const provider = (process.env.DATA_PROVIDER || '').toLowerCase();
+  const isProduction = process.env.NODE_ENV === 'production';
+
   if (provider === 'firestore') {
     try {
       return new FirestoreRepository();
-    } catch (err) {
-      console.warn('Failed to initialize FirestoreRepository, falling back to JsonRepository:', err);
+    } catch (err: any) {
+      if (isProduction) {
+        console.error('Error crítico al inicializar FirestoreRepository en producción:', err);
+        throw new Error(
+          `[Mini-IPCA Store] Error crítico: DATA_PROVIDER=firestore configurado en producción pero falló la inicialización (${err.message})`
+        );
+      }
+      console.warn('Fallo al inicializar FirestoreRepository; usando JsonRepository en desarrollo:', err);
       return new JsonRepository();
     }
   }
+
   return new JsonRepository();
 }
 

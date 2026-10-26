@@ -39,12 +39,38 @@
       "active": true,
       "createdAt": "2026-01-01T08:00:00Z",
       "updatedAt": "2026-01-01T08:00:00Z"
+    },
+    {
+      "authUid": "dev_uid_temp.student",
+      "username": "temp.student",
+      "email": "temp.student@ipca.edu",
+      "displayName": "Alumno Temporal Demo",
+      "role": "student",
+      "permissions": [],
+      "active": true,
+      "id": "user_1792983142871_ihyrv",
+      "createdAt": "2026-10-26T02:52:22.871Z",
+      "updatedAt": "2026-10-26T02:52:22.995Z"
     }
   ],
   "profiles": [
     {
       "id": "prof_student_1",
       "userId": "user_student_1",
+      "difficultyLevel": "facil",
+      "choiceCount": 4,
+      "showHint": true,
+      "showExample": true,
+      "textToSpeechEnabled": true,
+      "pictogramsEnabled": true,
+      "socialSupportsEnabled": true,
+      "scaffoldingLevel": "high",
+      "largeText": false,
+      "highContrast": false
+    },
+    {
+      "id": "prof_user_1792983142871_ihyrv",
+      "userId": "user_1792983142871_ihyrv",
       "difficultyLevel": "facil",
       "choiceCount": 4,
       "showHint": true,

@@ -127,6 +127,26 @@ export async function runFirebaseSeed() {
         });
         console.log(` • Metadatos de usuario creados en el repositorio.`);
       }
+
+      const targetUser = await db.getUserByEmail(spec.email);
+      if (targetUser && spec.role === 'student') {
+        const existingProf = await db.getProfileByUserId(targetUser.id);
+        if (!existingProf) {
+          await db.updateProfile(targetUser.id, {
+            difficultyLevel: 'facil',
+            choiceCount: 4,
+            showHint: true,
+            showExample: true,
+            textToSpeechEnabled: true,
+            pictogramsEnabled: true,
+            socialSupportsEnabled: true,
+            scaffoldingLevel: 'high',
+            largeText: false,
+            highContrast: false,
+          });
+          console.log(` • Perfil pedagógico inicial asignado al estudiante.`);
+        }
+      }
     }
   }
 

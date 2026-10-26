@@ -391,25 +391,139 @@ app.post(
   authenticateToken,
   requireRole(['technical_admin']),
   async (req: AuthenticatedRequest, res: Response) => {
-    const { username, email, displayName, role, permissions, active } = req.body;
+    const { username, email, displayName, role, permissions, active, temporaryPassword } = req.body;
     if (!username || !email || !displayName || !role) {
-      return res.status(400).json({ error: 'Faltan campos obligatorios para registrar los metadatos del usuario.' });
+      return res.status(400).json({ error: 'Faltan campos obligatorios para registrar el usuario.' });
     }
 
     if (!['student', 'teacher', 'technical_admin'].includes(role)) {
-      return res.status(400).json({ error: 'Rol no válido.' });
+      return res.status(400).json({ error: 'Rol no válido. Solo se permiten student, teacher o technical_admin.' });
     }
 
-    const created = await db.createUser({
-      username: username.trim().toLowerCase(),
-      email: email.trim().toLowerCase(),
-      displayName: displayName.trim(),
-      role,
-      permissions: Array.isArray(permissions) ? permissions : [],
-      active: active !== undefined ? Boolean(active) : true,
-    });
+    if (!temporaryPassword || typeof temporaryPassword !== 'string' || temporaryPassword.length < 6) {
+      return res.status(400).json({
+        error: 'La contraseña temporal es obligatoria y debe tener al menos 6 caracteres.',
+      });
+    }
 
-    res.status(201).json(created);
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanDisplayName = displayName.trim();
+
+    // Restrict permissions to known valid values
+    const allowedPermissions = ['manage_catalog'];
+    const safePermissions = Array.isArray(permissions)
+      ? permissions.filter((p: string) => allowedPermissions.includes(p))
+      : [];
+
+    // Check if email or username already exists in repository
+    const existingByEmail = await db.getUserByEmail(cleanEmail);
+    if (existingByEmail) {
+      return res.status(409).json({ error: 'Ya existe un usuario con este correo electrónico.' });
+    }
+    const allUsers = await db.getUsers();
+    if (allUsers.some((u) => u.username === cleanUsername)) {
+      return res.status(409).json({ error: 'Ya existe un usuario con este nombre de acceso institucional.' });
+    }
+
+    let createdAuthUid: string | null = null;
+    let authUserCreated = false;
+
+    try {
+      // 1. Create real Firebase Authentication identity
+      const auth = getAuth();
+      const fbUser = await auth.createUser({
+        email: cleanEmail,
+        password: temporaryPassword,
+        displayName: cleanDisplayName,
+        emailVerified: true,
+      });
+      createdAuthUid = fbUser.uid;
+      authUserCreated = true;
+
+      // 2. Create application metadata in repository with returned Firebase Auth UID
+      const created = await db.createUser({
+        authUid: fbUser.uid,
+        username: cleanUsername,
+        email: cleanEmail,
+        displayName: cleanDisplayName,
+        role,
+        permissions: safePermissions,
+        active: active !== undefined ? Boolean(active) : true,
+      });
+
+      // If student, create default educational scaffolding profile
+      if (role === 'student') {
+        await db.updateProfile(created.id, {
+          difficultyLevel: 'facil',
+          choiceCount: 4,
+          showHint: true,
+          showExample: true,
+          textToSpeechEnabled: true,
+          pictogramsEnabled: true,
+          socialSupportsEnabled: true,
+          scaffoldingLevel: 'high',
+          largeText: false,
+          highContrast: false,
+        });
+      }
+
+      res.status(201).json(created);
+    } catch (err: any) {
+      // Rollback Firebase Auth user if repository metadata creation failed
+      if (authUserCreated && createdAuthUid) {
+        try {
+          await getAuth().deleteUser(createdAuthUid);
+          console.log(`Rollback ejecutado: cuenta Firebase Auth ${createdAuthUid} eliminada por fallo en persistencia.`);
+        } catch (delErr) {
+          console.error('Error al realizar rollback de usuario en Firebase Auth:', delErr);
+        }
+      }
+
+      if (err.code === 'auth/email-already-exists') {
+        return res.status(409).json({ error: 'El correo electrónico ya está registrado en Firebase Authentication.' });
+      }
+
+      // Dev fallback if Firebase Admin is in local offline test mode or Identity Toolkit pending in GCP
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        !authUserCreated &&
+        (err.code === 'auth/network-request-failed' ||
+          err.message?.includes('credential') ||
+          err.message?.includes('network') ||
+          err.message?.includes('identitytoolkit'))
+      ) {
+        console.warn('Firebase Admin offline en modo desarrollo; creando usuario local dev:', err.message);
+        const devUid = `dev_uid_${cleanUsername}`;
+        const created = await db.createUser({
+          authUid: devUid,
+          username: cleanUsername,
+          email: cleanEmail,
+          displayName: cleanDisplayName,
+          role,
+          permissions: safePermissions,
+          active: active !== undefined ? Boolean(active) : true,
+        });
+        if (role === 'student') {
+          await db.updateProfile(created.id, {
+            difficultyLevel: 'facil',
+            choiceCount: 4,
+            showHint: true,
+            showExample: true,
+            textToSpeechEnabled: true,
+            pictogramsEnabled: true,
+            socialSupportsEnabled: true,
+            scaffoldingLevel: 'high',
+            largeText: false,
+            highContrast: false,
+          });
+        }
+        return res.status(201).json(created);
+      }
+
+      console.error('Error al crear usuario institucional:', err);
+      res.status(500).json({ error: err.message || 'Error al crear la cuenta en Firebase Authentication.' });
+    }
   }
 );
 
@@ -438,6 +552,16 @@ app.patch('/api/users/:id', authenticateToken, async (req: AuthenticatedRequest,
   }
 
   const updates = req.body;
+
+  // When active state changes, sync disabled status to Firebase Authentication
+  if (updates.active !== undefined && target.authUid) {
+    try {
+      await getAuth().updateUser(target.authUid, { disabled: !updates.active });
+    } catch (authErr: any) {
+      console.warn(`No se pudo sincronizar estado disabled en Firebase Auth para ${target.authUid}:`, authErr.message);
+    }
+  }
+
   const updated = await db.updateUser(id, updates);
   res.json(updated);
 });
