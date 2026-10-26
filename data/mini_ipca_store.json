@@ -1,0 +1,339 @@
+{
+  "users": [
+    {
+      "id": "user_student_1",
+      "authUid": "auth_student_1",
+      "username": "estudiante.demo",
+      "email": "estudiante@ipca.edu",
+      "passwordHash": "estudiante123",
+      "displayName": "Carlos M. (Estudiante Demo)",
+      "role": "student",
+      "permissions": [],
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z"
+    },
+    {
+      "id": "user_teacher_1",
+      "authUid": "auth_teacher_1",
+      "username": "docente.demo",
+      "email": "docente@ipca.edu",
+      "passwordHash": "docente123",
+      "displayName": "Prof. María Elena (Docente Demo)",
+      "role": "teacher",
+      "permissions": [
+        "manage_catalog"
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z"
+    },
+    {
+      "id": "user_admin_1",
+      "authUid": "auth_admin_1",
+      "username": "admin.demo",
+      "email": "admin@ipca.edu",
+      "passwordHash": "admin123",
+      "displayName": "Ing. Roberto Silva (Admin Demo)",
+      "role": "technical_admin",
+      "permissions": [
+        "manage_catalog"
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "prof_student_1",
+      "userId": "user_student_1",
+      "difficultyLevel": "facil",
+      "choiceCount": 4,
+      "showHint": true,
+      "showExample": true,
+      "textToSpeechEnabled": true,
+      "pictogramsEnabled": true,
+      "socialSupportsEnabled": true,
+      "scaffoldingLevel": "high",
+      "largeText": false,
+      "highContrast": false
+    }
+  ],
+  "products": [
+    {
+      "id": "P001",
+      "name": "Agua",
+      "priceCents": 50,
+      "visualKey": "water",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P002",
+      "name": "Jugo",
+      "priceCents": 90,
+      "visualKey": "juice",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-10-25T23:56:11.485Z",
+      "updatedBy": "Prof. María Elena (Docente Demo)"
+    },
+    {
+      "id": "P003",
+      "name": "Galletas",
+      "priceCents": 75,
+      "visualKey": "cookies",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P004",
+      "name": "Yogur",
+      "priceCents": 125,
+      "visualKey": "yogurt",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P005",
+      "name": "Leche",
+      "priceCents": 110,
+      "visualKey": "milk",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P006",
+      "name": "Pan",
+      "priceCents": 40,
+      "visualKey": "bread",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P007",
+      "name": "Chocolate",
+      "priceCents": 90,
+      "visualKey": "chocolate",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P008",
+      "name": "Papas fritas",
+      "priceCents": 100,
+      "visualKey": "chips",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P009",
+      "name": "Caramelo",
+      "priceCents": 10,
+      "visualKey": "candy",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    },
+    {
+      "id": "P010",
+      "name": "Atún",
+      "priceCents": 150,
+      "visualKey": "tuna",
+      "active": true,
+      "createdAt": "2026-01-01T08:00:00Z",
+      "updatedAt": "2026-01-01T08:00:00Z",
+      "updatedBy": "admin"
+    }
+  ],
+  "activities": [
+    {
+      "id": "ACT-001",
+      "type": "venta_caja",
+      "moduleTitle": "Venta y caja",
+      "title": "Venta en caja: Pedido básico",
+      "instruction": "Un cliente solicita 2 jugos y 1 paquete de galletas.",
+      "lineItems": [
+        {
+          "productId": "P002",
+          "quantity": 2
+        },
+        {
+          "productId": "P003",
+          "quantity": 1
+        }
+      ],
+      "paymentAmountCents": 500,
+      "difficulty": "facil",
+      "helpLevel": "high",
+      "active": true
+    },
+    {
+      "id": "ACT-002",
+      "type": "venta_caja",
+      "moduleTitle": "Venta y caja",
+      "title": "Venta en caja: Desayuno escolar",
+      "instruction": "Un cliente solicita 1 leche y 2 panes.",
+      "lineItems": [
+        {
+          "productId": "P005",
+          "quantity": 1
+        },
+        {
+          "productId": "P006",
+          "quantity": 2
+        }
+      ],
+      "paymentAmountCents": 500,
+      "difficulty": "facil",
+      "helpLevel": "high",
+      "active": true
+    },
+    {
+      "id": "ACT-003",
+      "type": "numeracion",
+      "moduleTitle": "Numeración y conteo",
+      "title": "Conteo de unidades de productos",
+      "instruction": "Un cliente solicita 3 botellas de agua. Cuenta y confirma la cantidad.",
+      "lineItems": [
+        {
+          "productId": "P001",
+          "quantity": 3
+        }
+      ],
+      "paymentAmountCents": 200,
+      "difficulty": "facil",
+      "helpLevel": "high",
+      "active": true
+    },
+    {
+      "id": "ACT-004",
+      "type": "operaciones",
+      "moduleTitle": "Operaciones",
+      "title": "Suma de dos productos del quiosco",
+      "instruction": "Un cliente solicita 1 yogur y 1 chocolate.",
+      "lineItems": [
+        {
+          "productId": "P004",
+          "quantity": 1
+        },
+        {
+          "productId": "P007",
+          "quantity": 1
+        }
+      ],
+      "paymentAmountCents": 500,
+      "difficulty": "medio",
+      "helpLevel": "medium",
+      "active": true
+    },
+    {
+      "id": "ACT-005",
+      "type": "tiempo",
+      "moduleTitle": "Tiempo y horarios",
+      "title": "Horario de apertura y refrigerio",
+      "instruction": "El cliente consulta a qué hora abre la tienda y pide 1 jugo.",
+      "lineItems": [
+        {
+          "productId": "P002",
+          "quantity": 1
+        }
+      ],
+      "paymentAmountCents": 100,
+      "difficulty": "facil",
+      "helpLevel": "medium",
+      "active": true
+    },
+    {
+      "id": "ACT-006",
+      "type": "medidas",
+      "moduleTitle": "Medidas",
+      "title": "Selección por tamaño de envase",
+      "instruction": "El cliente pide 1 botella de agua y 1 lata de atún.",
+      "lineItems": [
+        {
+          "productId": "P001",
+          "quantity": 1
+        },
+        {
+          "productId": "P010",
+          "quantity": 1
+        }
+      ],
+      "paymentAmountCents": 500,
+      "difficulty": "facil",
+      "helpLevel": "medium",
+      "active": true
+    },
+    {
+      "id": "ACT-007",
+      "type": "problemas",
+      "moduleTitle": "Problemas funcionales",
+      "title": "Pedido combinado en recreo",
+      "instruction": "Un cliente solicita 1 paquete de papas fritas y 2 caramelos.",
+      "lineItems": [
+        {
+          "productId": "P008",
+          "quantity": 1
+        },
+        {
+          "productId": "P009",
+          "quantity": 2
+        }
+      ],
+      "paymentAmountCents": 200,
+      "difficulty": "medio",
+      "helpLevel": "low",
+      "active": true
+    }
+  ],
+  "results": [
+    {
+      "id": "RES-001",
+      "studentId": "user_student_1",
+      "studentName": "Carlos M. (Estudiante Demo)",
+      "activityId": "ACT-001",
+      "lineItemsSnapshot": [
+        {
+          "productId": "P002",
+          "productName": "Jugo",
+          "unitPriceCents": 80,
+          "quantity": 2
+        },
+        {
+          "productId": "P003",
+          "productName": "Galletas",
+          "unitPriceCents": 75,
+          "quantity": 1
+        }
+      ],
+      "totalExpectedCents": 235,
+      "totalAnsweredCents": 235,
+      "paymentAmountCents": 500,
+      "changeExpectedCents": 265,
+      "changeAnsweredCents": 265,
+      "attempts": 1,
+      "correct": true,
+      "supportsUsed": [
+        "pista"
+      ],
+      "completedAt": "2026-10-24T10:15:00Z"
+    }
+  ]
+}

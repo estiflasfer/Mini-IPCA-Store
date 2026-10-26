@@ -1,0 +1,6 @@
+{
+  "name": "Mini-IPCA Store",
+  "description": "Herramienta de formación vocacional adaptada para adolescentes en atención de ventas y caja en el IPCA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
