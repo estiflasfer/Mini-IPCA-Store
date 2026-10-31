@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 interface S06ChangeCalculationProps {
-  activity: Activity;
+  activity: any;
   totalCents: number;
   paymentCents: number;
   profile?: StudentProfile | null;
@@ -37,21 +37,47 @@ export const S06ChangeCalculation: React.FC<S06ChangeCalculationProps> = ({
   // Dynamically calculate expected change in integer cents
   const expectedChangeCents = Math.max(0, paymentCents - totalCents);
 
-  // Generate dynamic answer options
+  // Generate dynamic answer options based on expected change and difficulty
   const choiceCount = profile?.choiceCount === 2 ? 2 : 4;
+  const difficulty = (activity as any)?.difficulty || profile?.difficultyLevel || 'facil';
+
   const generateChoices = (): number[] => {
     const correct = expectedChangeCents;
     if (choiceCount === 2) {
-      const wrong = Math.max(10, correct - 50);
+      const step = difficulty === 'facil' ? 50 : difficulty === 'medio' ? 25 : 15;
+      const wrong = correct > step ? correct - step : correct + step;
       return [correct, wrong].sort((a, b) => a - b);
     }
-    const distractors = [
-      Math.max(10, correct - 50),
-      correct + 35,
-      correct + 80,
-    ];
-    const set = Array.from(new Set([correct, ...distractors]));
-    return set.sort((a, b) => a - b);
+
+    let candidates: number[];
+    if (difficulty === 'facil') {
+      candidates = [
+        correct > 100 ? correct - 100 : Math.max(0, correct - 50),
+        correct + 50,
+        correct + 100,
+        correct + 150,
+      ].filter((c) => c !== correct);
+    } else if (difficulty === 'medio') {
+      candidates = [
+        correct > 50 ? correct - 50 : Math.max(0, correct - 25),
+        correct + 25,
+        correct + 50,
+        correct + 75,
+      ].filter((c) => c !== correct);
+    } else {
+      candidates = [
+        correct > 25 ? correct - 25 : Math.max(0, correct - 10),
+        correct + 10,
+        correct + 15,
+        correct + 25,
+      ].filter((c) => c !== correct);
+    }
+
+    const set = Array.from(new Set([correct, ...candidates]));
+    while (set.length < 4) {
+      set.push(correct + set.length * 25);
+    }
+    return set.slice(0, 4).sort((a, b) => a - b);
   };
 
   const [choices] = useState<number[]>(generateChoices);

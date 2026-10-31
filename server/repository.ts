@@ -3,6 +3,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import appletConfig from '../firebase-applet-config.json';
+
+// Ensure project is not inferred from Cloud Run host project
+if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== 'mini-ipca-store') {
+  delete process.env.GOOGLE_CLOUD_PROJECT;
+}
+if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== 'mini-ipca-store') {
+  delete process.env.GCLOUD_PROJECT;
+}
+process.env.FIREBASE_PROJECT_ID = 'mini-ipca-store';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +43,7 @@ export interface StudentProfileRecord {
   scaffoldingLevel: 'high' | 'medium' | 'low';
   largeText: boolean;
   highContrast: boolean;
+  enabledModules?: string[];
 }
 
 export interface ProductRecord {
@@ -65,6 +76,10 @@ export interface ResultRecord {
   studentId: string;
   studentName: string;
   activityId: string;
+  moduleType?: string;
+  activityType?: string;
+  difficulty?: 'facil' | 'medio' | 'avanzado';
+  generatedOrderId?: string;
   lineItemsSnapshot: {
     productId: string;
     productName: string;
@@ -128,7 +143,7 @@ export const INITIAL_PRODUCTS: ProductRecord[] = [
 export const INITIAL_USERS: UserRecord[] = [
   {
     id: 'user_student_1',
-    authUid: 'auth_student_1',
+    authUid: 'dufItgxNuRhdRgvtlt3At1gXeWg2',
     username: 'estudiante.demo',
     email: 'estudiante@ipca.edu',
     displayName: 'Carlos M. (Estudiante Demo)',
@@ -140,7 +155,7 @@ export const INITIAL_USERS: UserRecord[] = [
   },
   {
     id: 'user_teacher_1',
-    authUid: 'auth_teacher_1',
+    authUid: 'nEGhIGevplX2niACiZqbEMnWqrk1',
     username: 'docente.demo',
     email: 'docente@ipca.edu',
     displayName: 'Prof. María Elena (Docente Demo)',
@@ -152,7 +167,7 @@ export const INITIAL_USERS: UserRecord[] = [
   },
   {
     id: 'user_admin_1',
-    authUid: 'auth_admin_1',
+    authUid: 'OTYBqIm5zNgCXwW4q14jId2E3L33',
     username: 'admin.demo',
     email: 'admin@ipca.edu',
     displayName: 'Ing. Roberto Silva (Admin Demo)',
@@ -287,27 +302,7 @@ export const INITIAL_ACTIVITIES: ActivityRecord[] = [
   },
 ];
 
-export const INITIAL_RESULTS: ResultRecord[] = [
-  {
-    id: 'RES-001',
-    studentId: 'user_student_1',
-    studentName: 'Carlos M. (Estudiante Demo)',
-    activityId: 'ACT-001',
-    lineItemsSnapshot: [
-      { productId: 'P002', productName: 'Jugo', unitPriceCents: 80, quantity: 2 },
-      { productId: 'P003', productName: 'Galletas', unitPriceCents: 75, quantity: 1 },
-    ],
-    totalExpectedCents: 235,
-    totalAnsweredCents: 235,
-    paymentAmountCents: 500,
-    changeExpectedCents: 265,
-    changeAnsweredCents: 265,
-    attempts: 1,
-    correct: true,
-    supportsUsed: ['pista'],
-    completedAt: '2026-10-24T10:15:00Z',
-  },
-];
+export const INITIAL_RESULTS: ResultRecord[] = [];
 
 interface DatabaseSchema {
   users: UserRecord[];
@@ -566,19 +561,14 @@ export class FirestoreRepository implements IRepository {
   private fallback: JsonRepository | null = null;
 
   constructor() {
-    if (!getApps().length) {
-      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
-      try {
-        if (projectId) {
-          initializeApp({ projectId });
-        } else {
-          initializeApp();
-        }
-      } catch (err) {
-        console.warn('Firebase Admin initializeApp warning:', err);
-      }
-    }
-    this.firestore = getFirestore();
+    // Explicit project mini-ipca-store and default database (no databaseId passed)
+    const projectId = 'mini-ipca-store';
+
+    const adminApp = getApps().length ? getApps()[0] : initializeApp({ projectId });
+    this.firestore = getFirestore(adminApp);
+    console.log(
+      `[Mini-IPCA Store] FirestoreRepository conectado a proyecto: ${projectId}, base de datos: (default)`
+    );
   }
 
   getProviderName(): string {
@@ -884,14 +874,15 @@ export function createRepository(): IRepository {
   const provider = (process.env.DATA_PROVIDER || '').toLowerCase();
   const isProduction = process.env.NODE_ENV === 'production';
 
-  if (provider === 'firestore') {
+  // In production (Cloud Run), or when DATA_PROVIDER=firestore, strictly use FirestoreRepository
+  if (provider === 'firestore' || isProduction) {
     try {
       return new FirestoreRepository();
     } catch (err: any) {
       if (isProduction) {
         console.error('Error crítico al inicializar FirestoreRepository en producción:', err);
         throw new Error(
-          `[Mini-IPCA Store] Error crítico: DATA_PROVIDER=firestore configurado en producción pero falló la inicialización (${err.message})`
+          `[Mini-IPCA Store] Error crítico: No se pudo inicializar FirestoreRepository en producción (${err.message})`
         );
       }
       console.warn('Fallo al inicializar FirestoreRepository; usando JsonRepository en desarrollo:', err);

@@ -4,16 +4,27 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import appletConfig from './firebase-applet-config.json';
 import { db, UserRecord } from './server/repository.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize Firebase Admin SDK
+// Ensure project is not inferred from Cloud Run host project
+if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== 'mini-ipca-store') {
+  delete process.env.GOOGLE_CLOUD_PROJECT;
+}
+if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== 'mini-ipca-store') {
+  delete process.env.GCLOUD_PROJECT;
+}
+process.env.FIREBASE_PROJECT_ID = 'mini-ipca-store';
+
+// Initialize Firebase Admin SDK explicitly with project mini-ipca-store
+const targetProjectId = 'mini-ipca-store';
 if (!getApps().length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'mini-ipca-store';
   try {
-    initializeApp({ projectId });
+    initializeApp({ projectId: targetProjectId });
+    console.log(`[Mini-IPCA Store] Firebase Admin SDK inicializado para proyecto: ${targetProjectId}`);
   } catch (err) {
     console.warn('Firebase Admin initializeApp warning:', err);
   }
@@ -64,7 +75,7 @@ async function authenticateToken(req: AuthenticatedRequest, res: Response, next:
     let user = await db.getUserByAuthUid(uid);
     if (!user && email) {
       user = await db.getUserByEmail(email);
-      if (user && !user.authUid) {
+      if (user && user.authUid !== uid) {
         user = (await db.updateUser(user.id, { authUid: uid })) || user;
       }
     }
@@ -120,6 +131,32 @@ function requireCatalogPermission(req: AuthenticatedRequest, res: Response, next
 // --- MINIMAL HEALTH CHECK ---
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+// --- DIRECT FIRESTORE & AUTH VERIFICATION CHECK ---
+app.get('/api/system/firestore-check', async (_req, res) => {
+  try {
+    const products = await db.getProducts();
+    const users = await db.getUsers();
+    res.json({
+      status: 'ok',
+      firebaseAdminProject: 'mini-ipca-store',
+      firestoreProject: 'mini-ipca-store',
+      databaseId: '(default)',
+      provider: db.getProviderName(),
+      productsCount: products.length,
+      usersCount: users.length,
+      testRead: products.length > 0 ? `Leídos ${products.length} productos correctamente` : 'Colección vacía',
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      status: 'error',
+      firebaseAdminProject: 'mini-ipca-store',
+      firestoreProject: 'mini-ipca-store',
+      databaseId: '(default)',
+      error: err.message,
+    });
+  }
 });
 
 // --- AUTHENTICATION & USER PROFILE ---
@@ -338,6 +375,10 @@ app.get('/api/results', authenticateToken, async (req: AuthenticatedRequest, res
 app.post('/api/results', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const {
     activityId,
+    moduleType,
+    activityType,
+    difficulty,
+    generatedOrderId,
     lineItemsSnapshot,
     totalExpectedCents,
     totalAnsweredCents,
@@ -349,25 +390,31 @@ app.post('/api/results', authenticateToken, async (req: AuthenticatedRequest, re
     supportsUsed,
   } = req.body;
 
-  if (!activityId || !lineItemsSnapshot || totalExpectedCents === undefined) {
-    return res.status(400).json({ error: 'Datos incompletos para registrar el resultado.' });
+  if (!activityId) {
+    return res.status(400).json({ error: 'Falta activityId para registrar el resultado.' });
   }
 
-  const saved = await db.saveResult({
+  const resultData: any = {
     studentId: req.user?.id || 'anonimo',
     studentName: req.user?.displayName || 'Estudiante',
     activityId,
-    lineItemsSnapshot,
-    totalExpectedCents: Number(totalExpectedCents),
-    totalAnsweredCents: Number(totalAnsweredCents),
-    paymentAmountCents: Number(paymentAmountCents),
-    changeExpectedCents: Number(changeExpectedCents),
-    changeAnsweredCents: Number(changeAnsweredCents),
+    lineItemsSnapshot: Array.isArray(lineItemsSnapshot) ? lineItemsSnapshot : [],
+    totalExpectedCents: totalExpectedCents !== undefined ? Number(totalExpectedCents) : 0,
+    totalAnsweredCents: totalAnsweredCents !== undefined ? Number(totalAnsweredCents) : 0,
+    paymentAmountCents: paymentAmountCents !== undefined ? Number(paymentAmountCents) : 0,
+    changeExpectedCents: changeExpectedCents !== undefined ? Number(changeExpectedCents) : 0,
+    changeAnsweredCents: changeAnsweredCents !== undefined ? Number(changeAnsweredCents) : 0,
     attempts: Number(attempts) || 1,
     correct: Boolean(correct),
     supportsUsed: Array.isArray(supportsUsed) ? supportsUsed : [],
-  });
+  };
 
+  if (moduleType) resultData.moduleType = String(moduleType);
+  if (activityType) resultData.activityType = String(activityType);
+  if (difficulty) resultData.difficulty = difficulty;
+  if (generatedOrderId) resultData.generatedOrderId = String(generatedOrderId);
+
+  const saved = await db.saveResult(resultData);
   res.status(201).json(saved);
 });
 

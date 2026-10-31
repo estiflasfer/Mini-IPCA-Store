@@ -142,9 +142,9 @@ export const T03SupportsConfig: React.FC<T03SupportsConfigProps> = ({
                 }
                 className="w-full min-h-[48px] px-4 py-2.5 rounded-xl border-2 border-slate-300 bg-slate-50 font-semibold text-slate-900 focus:outline-none focus:ring-4 focus:ring-sky-100 cursor-pointer"
               >
-                <option value="facil">Fácil (1-2 productos directos)</option>
-                <option value="medio">Medio (cantidades combinadas)</option>
-                <option value="avanzado">Avanzado (múltiples productos)</option>
+                <option value="facil">Fácil (Exactamente 1 producto, 1-2 unidades)</option>
+                <option value="medio">Medio (Exactamente 2 productos, 1-3 unidades c/u)</option>
+                <option value="avanzado">Avanzado (Exactamente 3 productos, 1-4 unidades c/u)</option>
               </select>
             </div>
 

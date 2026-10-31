@@ -84,12 +84,14 @@ Este script es idempotente (seguro de ejecutar múltiples veces) y jamás persis
 
 ---
 
-## 7. Persistencia Desacoplada y Firestore
+## 7. Persistencia Desacoplada y Firestore (Proyecto: mini-ipca-store)
 La arquitectura aísla el almacenamiento detrás de la interfaz `IRepository`:
+- **Proyecto Conectado:** `mini-ipca-store` (Google Cloud / Firebase).
+- **Base de Datos Firestore:** Base de datos predeterminada `(default)`.
 - **Modo Deployed / Cloud Run (`DATA_PROVIDER=firestore`):** Almacenamiento persistente en Google Cloud Firestore mediante `firebase-admin/firestore`. No depende del sistema de archivos local efímero del contenedor.
-- **Modo Local / Fallback (`DATA_PROVIDER=json`):** Almacenamiento en archivo JSON local (`data/mini_ipca_store.json`) para desarrollo sin conexión.
+- **Modo Local / Contingencia (`DATA_PROVIDER=json`):** Almacenamiento en archivo JSON local (`data/mini_ipca_store.json`) para desarrollo sin conexión.
 - **Colecciones en Firestore:** `products`, `users`, `profiles`, `activities`, `results`.
-- **Reglas de seguridad Firestore (`firestore.rules`):** Zero-Trust (`allow read, write: if false;`), bloqueando escrituras directas desde el cliente web. Toda mutación pasa obligatoriamente por la API del backend.
+- **Reglas de seguridad Firestore (`firestore.rules`):** Zero-Trust (`allow read, write: if false;`), bloqueando lecturas/escrituras directas no autorizadas desde el cliente web. Toda mutación pasa obligatoriamente por la API autenticada del backend.
 
 ---
 

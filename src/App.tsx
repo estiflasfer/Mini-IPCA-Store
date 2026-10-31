@@ -7,8 +7,11 @@ import {
   ScreenId,
   StudentProfile,
   User,
+  GeneratedSalesOrder,
+  TextSizeLevel,
 } from './types';
 import { api } from './services/api';
+import { generateSalesOrder } from './services/salesGenerator';
 import { AppNavbar } from './components/layout/AppNavbar';
 import { RoleGuard } from './components/common/RoleGuard';
 
@@ -22,6 +25,7 @@ import { S05TotalCalculation } from './components/student/S05TotalCalculation';
 import { S06ChangeCalculation } from './components/student/S06ChangeCalculation';
 import { S07FeedbackClosure } from './components/student/S07FeedbackClosure';
 import { S08StudentProgress } from './components/student/S08StudentProgress';
+import { ModulePractice, ModuleType } from './components/student/ModulePractice';
 
 import { T01TeacherDashboard } from './components/teacher/T01TeacherDashboard';
 import { T02StudentProfiles } from './components/teacher/T02StudentProfiles';
@@ -45,9 +49,20 @@ function MainApp() {
   const [results, setResults] = useState<HistoricalResult[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedStudentIdForProfile, setSelectedStudentIdForProfile] = useState<string>('user_student_1');
+  const [profileUpdateTrigger, setProfileUpdateTrigger] = useState(0);
 
-  // Accessibility UI toggles
-  const [largeText, setLargeText] = useState(false);
+  // Accessibility UI scale (3-step bounded scale: 100%, 120%, 140%)
+  const [textSize, setTextSize] = useState<TextSizeLevel>(() => {
+    try {
+      const saved = localStorage.getItem('mini_ipca_text_size');
+      if (saved === 'large' || saved === 'extraLarge' || saved === 'normal') {
+        return saved as TextSizeLevel;
+      }
+    } catch {
+      // ignore
+    }
+    return 'normal';
+  });
   const [highContrast, setHighContrast] = useState(false);
 
   // Active sales training exercise state
@@ -107,35 +122,81 @@ function MainApp() {
     }
   }, [user]);
 
+  // Root font-size scaling effect across entire application
+  useEffect(() => {
+    const percentMap: Record<TextSizeLevel, string> = {
+      normal: '100%',
+      large: '120%',
+      extraLarge: '140%',
+    };
+    document.documentElement.style.fontSize = percentMap[textSize];
+    document.documentElement.setAttribute('data-text-size', textSize);
+    try {
+      localStorage.setItem('mini_ipca_text_size', textSize);
+    } catch {
+      // ignore
+    }
+  }, [textSize]);
+
+  const handleIncreaseTextSize = () => {
+    setTextSize((prev) => {
+      if (prev === 'normal') return 'large';
+      if (prev === 'large') return 'extraLarge';
+      return prev;
+    });
+  };
+
+  const handleDecreaseTextSize = () => {
+    setTextSize((prev) => {
+      if (prev === 'extraLarge') return 'large';
+      if (prev === 'large') return 'normal';
+      return prev;
+    });
+  };
+
   // Sync profile preferences
   useEffect(() => {
     if (profile) {
-      if (profile.largeText !== undefined) setLargeText(profile.largeText);
-      if (profile.highContrast !== undefined) setHighContrast(profile.highContrast);
+      if (profile.largeText && textSize === 'normal') {
+        setTextSize('large');
+      }
+      if (profile.highContrast !== undefined) {
+        setHighContrast(profile.highContrast);
+      }
     }
   }, [profile]);
 
-  // Active activity (core sales activity ACT-001 by default)
-  const currentActivity =
-    activities.find((a) => a.id === 'ACT-001') ||
-    activities[0] || {
-      id: 'ACT-001',
-      title: 'Venta en caja: Pedido básico',
-      instruction: 'Un cliente solicita 2 jugos y 1 paquete de galletas.',
-      lineItems: [
-        { productId: 'P002', quantity: 2 },
-        { productId: 'P003', quantity: 1 },
-      ],
-      paymentAmountCents: 500,
-      difficulty: 'facil',
-      helpLevel: 'high',
-      active: true,
-      expectedTotalCents: 235,
-      expectedChangeCents: 265,
-    };
+  // Controlled dynamic sales order state
+  const [currentSalesOrder, setCurrentSalesOrder] = useState<GeneratedSalesOrder | null>(null);
+  const [activeModuleType, setActiveModuleType] = useState<ModuleType>('numeracion');
 
-  // Reset exercise state for a fresh sale
-  const handleResetSale = () => {
+  const getOrInitSalesOrder = (): GeneratedSalesOrder => {
+    if (currentSalesOrder) return currentSalesOrder;
+    const initial = generateSalesOrder(products, profile?.difficultyLevel || 'facil');
+    setCurrentSalesOrder(initial);
+    return initial;
+  };
+
+  // Helper to check if a specific module is enabled for the current student
+  const isModuleEnabled = (modType: string): boolean => {
+    if (
+      !profile?.enabledModules ||
+      !Array.isArray(profile.enabledModules) ||
+      profile.enabledModules.length === 0
+    ) {
+      return true; // Backward compatibility: all modules enabled if undefined or empty
+    }
+    return profile.enabledModules.includes(modType);
+  };
+
+  // Generate a NEW sales order at the student's current configured difficulty
+  const handleStartNewSale = () => {
+    if (!isModuleEnabled('venta_caja')) {
+      setCurrentScreen('S02');
+      return;
+    }
+    const freshOrder = generateSalesOrder(products, profile?.difficultyLevel || 'facil');
+    setCurrentSalesOrder(freshOrder);
     setSelectedQuantities({});
     setAnsweredTotalCents(null);
     setAnsweredChangeCents(null);
@@ -143,30 +204,40 @@ function MainApp() {
     setCurrentScreen('S04');
   };
 
+  // Intentar nuevamente: preserves EXACT same products, quantities, prices, total, payment, change, difficulty, generatedOrderId
+  const handleRetrySameSale = () => {
+    setSelectedQuantities({});
+    setAnsweredTotalCents(null);
+    setAnsweredChangeCents(null);
+    setCurrentScreen('S04');
+  };
+
   // Complete sale handler (called when change calculation S06 succeeds)
   const handleSaleSuccess = async (changeCents: number) => {
     setAnsweredChangeCents(changeCents);
+    const order = currentSalesOrder || getOrInitSalesOrder();
 
-    // Build lineItemsSnapshot with current product names and unit prices
-    const snapshot = currentActivity.lineItems.map((item: any) => {
-      const prod = products.find((p) => p.id === item.productId);
-      return {
-        productId: item.productId,
-        productName: prod ? prod.name : item.productId,
-        unitPriceCents: prod ? prod.priceCents : 0,
-        quantity: item.quantity,
-      };
-    });
+    // Snapshot of items with prices at exercise generation time
+    const snapshot = order.lineItems.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      unitPriceCents: item.unitPriceCents,
+      quantity: item.quantity,
+    }));
 
     try {
       await api.saveResult({
         studentId: user?.id || 'anonimo',
-        activityId: currentActivity.id,
+        activityId: order.generatedOrderId,
+        moduleType: 'venta_caja',
+        activityType: 'venta_caja',
+        difficulty: order.difficulty,
+        generatedOrderId: order.generatedOrderId,
         lineItemsSnapshot: snapshot,
-        totalExpectedCents: currentActivity.expectedTotalCents,
-        totalAnsweredCents: answeredTotalCents || currentActivity.expectedTotalCents,
-        paymentAmountCents: currentActivity.paymentAmountCents,
-        changeExpectedCents: currentActivity.expectedChangeCents,
+        totalExpectedCents: order.totalExpectedCents,
+        totalAnsweredCents: answeredTotalCents || order.totalExpectedCents,
+        paymentAmountCents: order.paymentAmountCents,
+        changeExpectedCents: order.changeExpectedCents,
         changeAnsweredCents: changeCents,
         attempts: 1,
         correct: true,
@@ -193,7 +264,7 @@ function MainApp() {
     <div
       className={`min-h-screen flex flex-col font-sans selection:bg-sky-200 transition-colors ${
         highContrast ? 'bg-slate-100 text-slate-950' : 'bg-slate-50 text-slate-900'
-      } ${largeText ? 'text-lg' : 'text-base'}`}
+      }`}
     >
       {/* Top Banner */}
       <div className="bg-slate-900 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
@@ -217,8 +288,9 @@ function MainApp() {
       <AppNavbar
         currentScreen={currentScreen}
         onNavigate={setCurrentScreen}
-        largeText={largeText}
-        onToggleLargeText={() => setLargeText(!largeText)}
+        textSize={textSize}
+        onIncreaseTextSize={handleIncreaseTextSize}
+        onDecreaseTextSize={handleDecreaseTextSize}
         highContrast={highContrast}
         onToggleHighContrast={() => setHighContrast(!highContrast)}
       />
@@ -241,7 +313,17 @@ function MainApp() {
         {currentScreen === 'S01' && (
           <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
             <S01StudentHome
-              onNavigate={setCurrentScreen}
+              onNavigate={(screen) => {
+                if (screen === 'S04') {
+                  if (!currentSalesOrder) {
+                    handleStartNewSale();
+                  } else {
+                    setCurrentScreen('S04');
+                  }
+                } else {
+                  setCurrentScreen(screen);
+                }
+              }}
               completedSalesCount={results.filter((r) => r.studentId === user?.id).length}
               totalGoal={5}
             />
@@ -251,9 +333,54 @@ function MainApp() {
         {currentScreen === 'S02' && (
           <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
             <S02ModuleSelect
+              profile={profile}
               onNavigate={setCurrentScreen}
-              onSelectModuleActivity={() => handleResetSale()}
+              onSelectModuleActivity={(modType) => {
+                if (!isModuleEnabled(modType)) {
+                  setCurrentScreen('S02');
+                  return;
+                }
+                if (modType === 'venta_caja') {
+                  handleStartNewSale();
+                } else {
+                  setActiveModuleType(modType as ModuleType);
+                  setCurrentScreen('S_MODULE');
+                }
+              }}
             />
+          </RoleGuard>
+        )}
+
+        {currentScreen === 'S_MODULE' && (
+          <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
+            {!isModuleEnabled(activeModuleType) ? (
+              <div className="p-8 text-center bg-white rounded-3xl border border-slate-200">
+                <p className="font-bold text-slate-800 text-lg">
+                  Este módulo no está habilitado actualmente para tu usuario.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCurrentScreen('S02')}
+                  className="mt-4 px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl cursor-pointer"
+                >
+                  Volver a módulos de entrenamiento
+                </button>
+              </div>
+            ) : (
+              <ModulePractice
+                moduleType={activeModuleType}
+                profile={profile}
+                products={products}
+                onNavigate={setCurrentScreen}
+                onSaveResult={async (resultData) => {
+                  await api.saveResult({
+                    studentId: user?.id || 'anonimo',
+                    ...resultData,
+                  });
+                  await refreshResults();
+                }}
+              />
+            )}
           </RoleGuard>
         )}
 
@@ -265,21 +392,36 @@ function MainApp() {
 
         {currentScreen === 'S04' && (
           <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
-            <S04SalesOrder
-              activity={currentActivity}
-              products={products}
-              selectedQuantities={selectedQuantities}
-              onUpdateQuantities={setSelectedQuantities}
-              onProceedToTotal={() => setCurrentScreen('S05')}
-              onNavigate={setCurrentScreen}
-            />
+            {!isModuleEnabled('venta_caja') ? (
+              <div className="p-8 text-center bg-white rounded-3xl border border-slate-200">
+                <p className="font-bold text-slate-800 text-lg">
+                  El módulo de Venta y caja no está habilitado actualmente para tu usuario.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCurrentScreen('S02')}
+                  className="mt-4 px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl cursor-pointer"
+                >
+                  Volver a módulos de entrenamiento
+                </button>
+              </div>
+            ) : (
+              <S04SalesOrder
+                activity={currentSalesOrder || getOrInitSalesOrder()}
+                products={products}
+                selectedQuantities={selectedQuantities}
+                onUpdateQuantities={setSelectedQuantities}
+                onProceedToTotal={() => setCurrentScreen('S05')}
+                onNavigate={setCurrentScreen}
+              />
+            )}
           </RoleGuard>
         )}
 
         {currentScreen === 'S05' && (
           <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
             <S05TotalCalculation
-              activity={currentActivity}
+              activity={currentSalesOrder || getOrInitSalesOrder()}
               products={products}
               selectedQuantities={selectedQuantities}
               profile={profile}
@@ -296,9 +438,11 @@ function MainApp() {
         {currentScreen === 'S06' && (
           <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
             <S06ChangeCalculation
-              activity={currentActivity}
-              totalCents={answeredTotalCents || currentActivity.expectedTotalCents}
-              paymentCents={currentActivity.paymentAmountCents}
+              activity={currentSalesOrder || getOrInitSalesOrder()}
+              totalCents={
+                answeredTotalCents || (currentSalesOrder || getOrInitSalesOrder()).totalExpectedCents
+              }
+              paymentCents={(currentSalesOrder || getOrInitSalesOrder()).paymentAmountCents}
               profile={profile}
               onSuccessChange={handleSaleSuccess}
               onNavigate={setCurrentScreen}
@@ -310,12 +454,16 @@ function MainApp() {
         {currentScreen === 'S07' && (
           <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
             <S07FeedbackClosure
-              totalCents={answeredTotalCents || currentActivity.expectedTotalCents}
-              paymentCents={currentActivity.paymentAmountCents}
-              changeCents={answeredChangeCents || currentActivity.expectedChangeCents}
+              totalCents={
+                answeredTotalCents || (currentSalesOrder || getOrInitSalesOrder()).totalExpectedCents
+              }
+              paymentCents={(currentSalesOrder || getOrInitSalesOrder()).paymentAmountCents}
+              changeCents={
+                answeredChangeCents || (currentSalesOrder || getOrInitSalesOrder()).changeExpectedCents
+              }
               completedCount={results.filter((r) => r.studentId === user?.id).length}
               totalGoal={5}
-              onPracticeAgain={handleResetSale}
+              onPracticeAgain={handleStartNewSale}
               onNavigate={setCurrentScreen}
             />
           </RoleGuard>
@@ -325,7 +473,13 @@ function MainApp() {
           <RoleGuard allowedRoles={['student']} onRedirect={setCurrentScreen}>
             <S08StudentProgress
               results={results.filter((r) => r.studentId === user?.id)}
-              onNavigate={setCurrentScreen}
+              onNavigate={(screen) => {
+                if (screen === 'S04') {
+                  handleStartNewSale();
+                } else {
+                  setCurrentScreen(screen);
+                }
+              }}
             />
           </RoleGuard>
         )}
@@ -360,7 +514,10 @@ function MainApp() {
               studentId={selectedStudentIdForProfile}
               students={studentsList.length > 0 ? studentsList : users}
               onNavigate={setCurrentScreen}
-              onProfileUpdated={() => refreshActivities()}
+              onProfileUpdated={() => {
+                setProfileUpdateTrigger((t) => t + 1);
+                refreshActivities();
+              }}
             />
           </RoleGuard>
         )}
@@ -368,8 +525,12 @@ function MainApp() {
         {currentScreen === 'T04' && (
           <RoleGuard allowedRoles={['teacher']} onRedirect={setCurrentScreen}>
             <T04ActivityLibrary
+              key={`${selectedStudentIdForProfile}_${profileUpdateTrigger}`}
               activities={activities}
               products={products}
+              students={studentsList.length > 0 ? studentsList : users.filter((u) => u.role === 'student')}
+              selectedStudentId={selectedStudentIdForProfile}
+              onSelectStudent={setSelectedStudentIdForProfile}
               onNavigate={setCurrentScreen}
               onRefreshActivities={refreshActivities}
             />

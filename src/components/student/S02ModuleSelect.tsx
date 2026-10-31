@@ -1,5 +1,4 @@
-import React from 'react';
-import { ScreenId } from '../../types';
+import { ALL_TRAINING_MODULES, ScreenId, StudentProfile } from '../../types';
 import {
   ShoppingBag,
   Binary,
@@ -14,6 +13,7 @@ import {
 import { AudioButton } from '../common/AudioButton';
 
 interface S02ModuleSelectProps {
+  profile?: StudentProfile | null;
   onNavigate: (screen: ScreenId) => void;
   onSelectModuleActivity?: (moduleType: string) => void;
 }
@@ -81,17 +81,22 @@ const MODULES: ModuleInfo[] = [
 ];
 
 export const S02ModuleSelect: React.FC<S02ModuleSelectProps> = ({
+  profile,
   onNavigate,
   onSelectModuleActivity,
 }) => {
+  // Retrocompatibilidad: Si enabledModules no está definido, se muestran los 6 módulos
+  const enabledModuleTypes: readonly string[] = profile?.enabledModules ?? ALL_TRAINING_MODULES;
+  const visibleModules = MODULES.filter((m) => enabledModuleTypes.includes(m.type));
+
   const handleSelect = (mod: ModuleInfo) => {
+    if (onSelectModuleActivity) {
+      onSelectModuleActivity(mod.type);
+    }
     if (mod.type === 'venta_caja') {
       onNavigate('S04');
     } else {
-      if (onSelectModuleActivity) {
-        onSelectModuleActivity(mod.type);
-      }
-      onNavigate('S04');
+      onNavigate('S_MODULE');
     }
   };
 
@@ -122,9 +127,9 @@ export const S02ModuleSelect: React.FC<S02ModuleSelectProps> = ({
         />
       </div>
 
-      {/* Grid of 6 Modules */}
+      {/* Grid of enabled training modules */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-        {MODULES.map((mod) => {
+        {visibleModules.map((mod) => {
           const Icon = mod.icon;
           return (
             <div

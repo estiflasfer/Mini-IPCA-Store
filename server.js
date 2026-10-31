@@ -12,6 +12,13 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== "mini-ipca-store") {
+  delete process.env.GOOGLE_CLOUD_PROJECT;
+}
+if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== "mini-ipca-store") {
+  delete process.env.GCLOUD_PROJECT;
+}
+process.env.FIREBASE_PROJECT_ID = "mini-ipca-store";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
 var INITIAL_PRODUCTS = [
@@ -29,7 +36,7 @@ var INITIAL_PRODUCTS = [
 var INITIAL_USERS = [
   {
     id: "user_student_1",
-    authUid: "auth_student_1",
+    authUid: "dufItgxNuRhdRgvtlt3At1gXeWg2",
     username: "estudiante.demo",
     email: "estudiante@ipca.edu",
     displayName: "Carlos M. (Estudiante Demo)",
@@ -41,7 +48,7 @@ var INITIAL_USERS = [
   },
   {
     id: "user_teacher_1",
-    authUid: "auth_teacher_1",
+    authUid: "nEGhIGevplX2niACiZqbEMnWqrk1",
     username: "docente.demo",
     email: "docente@ipca.edu",
     displayName: "Prof. Mar\xEDa Elena (Docente Demo)",
@@ -53,7 +60,7 @@ var INITIAL_USERS = [
   },
   {
     id: "user_admin_1",
-    authUid: "auth_admin_1",
+    authUid: "OTYBqIm5zNgCXwW4q14jId2E3L33",
     username: "admin.demo",
     email: "admin@ipca.edu",
     displayName: "Ing. Roberto Silva (Admin Demo)",
@@ -185,27 +192,7 @@ var INITIAL_ACTIVITIES = [
     active: true
   }
 ];
-var INITIAL_RESULTS = [
-  {
-    id: "RES-001",
-    studentId: "user_student_1",
-    studentName: "Carlos M. (Estudiante Demo)",
-    activityId: "ACT-001",
-    lineItemsSnapshot: [
-      { productId: "P002", productName: "Jugo", unitPriceCents: 80, quantity: 2 },
-      { productId: "P003", productName: "Galletas", unitPriceCents: 75, quantity: 1 }
-    ],
-    totalExpectedCents: 235,
-    totalAnsweredCents: 235,
-    paymentAmountCents: 500,
-    changeExpectedCents: 265,
-    changeAnsweredCents: 265,
-    attempts: 1,
-    correct: true,
-    supportsUsed: ["pista"],
-    completedAt: "2026-10-24T10:15:00Z"
-  }
-];
+var INITIAL_RESULTS = [];
 var JsonRepository = class {
   constructor() {
     const dataDir = path.resolve(__dirname, "../data");
@@ -410,17 +397,18 @@ var JsonRepository = class {
 var FirestoreRepository = class {
   constructor() {
     this.initialized = false;
-    if (!getApps().length) {
-      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || "mini-ipca-store";
-      try {
-        initializeApp({ projectId });
-      } catch (err) {
-        console.warn("Firebase Admin initializeApp warning:", err);
-      }
-    }
-    this.firestore = getFirestore();
+    this.fallback = null;
+    const projectId = "mini-ipca-store";
+    const adminApp = getApps().length ? getApps()[0] : initializeApp({ projectId });
+    this.firestore = getFirestore(adminApp);
+    console.log(
+      `[Mini-IPCA Store] FirestoreRepository conectado a proyecto: ${projectId}, base de datos: (default)`
+    );
   }
   getProviderName() {
+    if (this.fallback) {
+      return "FirestoreRepository (fallback a JsonRepository en desarrollo)";
+    }
     return "FirestoreRepository (Google Cloud Firestore)";
   }
   async ensureInitialized() {
@@ -450,28 +438,42 @@ var FirestoreRepository = class {
       }
       this.initialized = true;
     } catch (err) {
-      console.warn("FirestoreRepository: ensureInitialized warning:", err);
+      if (process.env.NODE_ENV === "production") {
+        console.error("FirestoreRepository: Error cr\xEDtico de conexi\xF3n a Firestore en producci\xF3n:", err);
+        throw new Error(
+          `[Mini-IPCA Store] Error cr\xEDtico en Firestore: No se pudo conectar a Cloud Firestore en producci\xF3n (${err.message}). Verifique que la API de Cloud Firestore est\xE9 habilitada en el proyecto de GCP.`
+        );
+      }
+      console.warn(
+        `[Mini-IPCA Store] Aviso en desarrollo: No se pudo conectar a Cloud Firestore (${err.message}). Cambiando a JsonRepository como contingencia de desarrollo local.`
+      );
+      this.fallback = new JsonRepository();
+      this.initialized = true;
     }
   }
   async getUsers() {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUsers();
     const snap = await this.firestore.collection("users").get();
     return snap.docs.map((d) => d.data());
   }
   async getUserById(id) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserById(id);
     const doc = await this.firestore.collection("users").doc(id).get();
     if (!doc.exists) return void 0;
     return doc.data();
   }
   async getUserByAuthUid(authUid) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserByAuthUid(authUid);
     const snap = await this.firestore.collection("users").where("authUid", "==", authUid).limit(1).get();
     if (snap.empty) return void 0;
     return snap.docs[0].data();
   }
   async getUserByEmail(email) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserByEmail(email);
     const clean = email.trim().toLowerCase();
     const snap = await this.firestore.collection("users").where("email", "==", clean).limit(1).get();
     if (snap.empty) return void 0;
@@ -479,6 +481,7 @@ var FirestoreRepository = class {
   }
   async getUserByLogin(login) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getUserByLogin(login);
     const clean = login.trim().toLowerCase();
     let snap = await this.firestore.collection("users").where("username", "==", clean).limit(1).get();
     if (!snap.empty) return snap.docs[0].data();
@@ -497,6 +500,7 @@ var FirestoreRepository = class {
   }
   async createUser(user) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.createUser(user);
     const id = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newRecord = {
       ...user,
@@ -509,6 +513,7 @@ var FirestoreRepository = class {
   }
   async updateUser(id, updates) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateUser(id, updates);
     const ref = this.firestore.collection("users").doc(id);
     const doc = await ref.get();
     if (!doc.exists) return null;
@@ -522,6 +527,7 @@ var FirestoreRepository = class {
   }
   async getProfileByUserId(userId) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getProfileByUserId(userId);
     const doc = await this.firestore.collection("profiles").doc(userId).get();
     if (doc.exists) {
       return doc.data();
@@ -545,6 +551,7 @@ var FirestoreRepository = class {
   }
   async updateProfile(userId, updates) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateProfile(userId, updates);
     const ref = this.firestore.collection("profiles").doc(userId);
     const doc = await ref.get();
     const existing = doc.exists ? doc.data() : {
@@ -567,17 +574,20 @@ var FirestoreRepository = class {
   }
   async getProducts() {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getProducts();
     const snap = await this.firestore.collection("products").get();
     return snap.docs.map((d) => d.data());
   }
   async getProductById(id) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getProductById(id);
     const doc = await this.firestore.collection("products").doc(id).get();
     if (!doc.exists) return void 0;
     return doc.data();
   }
   async createProduct(product) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.createProduct(product);
     const all = await this.getProducts();
     const id = `P${String(all.length + 1).padStart(3, "0")}`;
     const newRecord = {
@@ -591,6 +601,7 @@ var FirestoreRepository = class {
   }
   async updateProduct(id, updates) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateProduct(id, updates);
     const ref = this.firestore.collection("products").doc(id);
     const doc = await ref.get();
     if (!doc.exists) return null;
@@ -604,17 +615,20 @@ var FirestoreRepository = class {
   }
   async getActivities() {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getActivities();
     const snap = await this.firestore.collection("activities").get();
     return snap.docs.map((d) => d.data());
   }
   async getActivityById(id) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getActivityById(id);
     const doc = await this.firestore.collection("activities").doc(id).get();
     if (!doc.exists) return void 0;
     return doc.data();
   }
   async updateActivity(id, updates) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.updateActivity(id, updates);
     const ref = this.firestore.collection("activities").doc(id);
     const doc = await ref.get();
     if (!doc.exists) return null;
@@ -624,11 +638,13 @@ var FirestoreRepository = class {
   }
   async getResults() {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.getResults();
     const snap = await this.firestore.collection("results").orderBy("completedAt", "desc").get();
     return snap.docs.map((d) => d.data());
   }
   async saveResult(result) {
     await this.ensureInitialized();
+    if (this.fallback) return this.fallback.saveResult(result);
     const id = `RES-${Date.now()}-${Math.floor(Math.random() * 1e3)}`;
     const newRecord = {
       ...result,
@@ -639,6 +655,7 @@ var FirestoreRepository = class {
     return newRecord;
   }
   async resetToDefaults() {
+    if (this.fallback) return this.fallback.resetToDefaults();
     const batch = this.firestore.batch();
     for (const p of INITIAL_PRODUCTS) {
       batch.set(this.firestore.collection("products").doc(p.id), p);
@@ -660,11 +677,18 @@ var FirestoreRepository = class {
 };
 function createRepository() {
   const provider = (process.env.DATA_PROVIDER || "").toLowerCase();
-  if (provider === "firestore") {
+  const isProduction = process.env.NODE_ENV === "production";
+  if (provider === "firestore" || isProduction) {
     try {
       return new FirestoreRepository();
     } catch (err) {
-      console.warn("Failed to initialize FirestoreRepository, falling back to JsonRepository:", err);
+      if (isProduction) {
+        console.error("Error cr\xEDtico al inicializar FirestoreRepository en producci\xF3n:", err);
+        throw new Error(
+          `[Mini-IPCA Store] Error cr\xEDtico: No se pudo inicializar FirestoreRepository en producci\xF3n (${err.message})`
+        );
+      }
+      console.warn("Fallo al inicializar FirestoreRepository; usando JsonRepository en desarrollo:", err);
       return new JsonRepository();
     }
   }
@@ -675,10 +699,18 @@ var db = createRepository();
 // server.ts
 var __filename2 = fileURLToPath2(import.meta.url);
 var __dirname2 = path2.dirname(__filename2);
+if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== "mini-ipca-store") {
+  delete process.env.GOOGLE_CLOUD_PROJECT;
+}
+if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== "mini-ipca-store") {
+  delete process.env.GCLOUD_PROJECT;
+}
+process.env.FIREBASE_PROJECT_ID = "mini-ipca-store";
+var targetProjectId = "mini-ipca-store";
 if (!getApps2().length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || "mini-ipca-store";
   try {
-    initializeApp2({ projectId });
+    initializeApp2({ projectId: targetProjectId });
+    console.log(`[Mini-IPCA Store] Firebase Admin SDK inicializado para proyecto: ${targetProjectId}`);
   } catch (err) {
     console.warn("Firebase Admin initializeApp warning:", err);
   }
@@ -714,7 +746,7 @@ async function authenticateToken(req, res, next) {
     let user = await db.getUserByAuthUid(uid);
     if (!user && email) {
       user = await db.getUserByEmail(email);
-      if (user && !user.authUid) {
+      if (user && user.authUid !== uid) {
         user = await db.updateUser(user.id, { authUid: uid }) || user;
       }
     }
@@ -760,6 +792,30 @@ function requireCatalogPermission(req, res, next) {
 }
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+app.get("/api/system/firestore-check", async (_req, res) => {
+  try {
+    const products = await db.getProducts();
+    const users = await db.getUsers();
+    res.json({
+      status: "ok",
+      firebaseAdminProject: "mini-ipca-store",
+      firestoreProject: "mini-ipca-store",
+      databaseId: "(default)",
+      provider: db.getProviderName(),
+      productsCount: products.length,
+      usersCount: users.length,
+      testRead: products.length > 0 ? `Le\xEDdos ${products.length} productos correctamente` : "Colecci\xF3n vac\xEDa"
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: "error",
+      firebaseAdminProject: "mini-ipca-store",
+      firestoreProject: "mini-ipca-store",
+      databaseId: "(default)",
+      error: err.message
+    });
+  }
 });
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "No autenticado." });
@@ -939,6 +995,10 @@ app.get("/api/results", authenticateToken, async (req, res) => {
 app.post("/api/results", authenticateToken, async (req, res) => {
   const {
     activityId,
+    moduleType,
+    activityType,
+    difficulty,
+    generatedOrderId,
     lineItemsSnapshot,
     totalExpectedCents,
     totalAnsweredCents,
@@ -949,23 +1009,28 @@ app.post("/api/results", authenticateToken, async (req, res) => {
     correct,
     supportsUsed
   } = req.body;
-  if (!activityId || !lineItemsSnapshot || totalExpectedCents === void 0) {
-    return res.status(400).json({ error: "Datos incompletos para registrar el resultado." });
+  if (!activityId) {
+    return res.status(400).json({ error: "Falta activityId para registrar el resultado." });
   }
-  const saved = await db.saveResult({
+  const resultData = {
     studentId: req.user?.id || "anonimo",
     studentName: req.user?.displayName || "Estudiante",
     activityId,
-    lineItemsSnapshot,
-    totalExpectedCents: Number(totalExpectedCents),
-    totalAnsweredCents: Number(totalAnsweredCents),
-    paymentAmountCents: Number(paymentAmountCents),
-    changeExpectedCents: Number(changeExpectedCents),
-    changeAnsweredCents: Number(changeAnsweredCents),
+    lineItemsSnapshot: Array.isArray(lineItemsSnapshot) ? lineItemsSnapshot : [],
+    totalExpectedCents: totalExpectedCents !== void 0 ? Number(totalExpectedCents) : 0,
+    totalAnsweredCents: totalAnsweredCents !== void 0 ? Number(totalAnsweredCents) : 0,
+    paymentAmountCents: paymentAmountCents !== void 0 ? Number(paymentAmountCents) : 0,
+    changeExpectedCents: changeExpectedCents !== void 0 ? Number(changeExpectedCents) : 0,
+    changeAnsweredCents: changeAnsweredCents !== void 0 ? Number(changeAnsweredCents) : 0,
     attempts: Number(attempts) || 1,
     correct: Boolean(correct),
     supportsUsed: Array.isArray(supportsUsed) ? supportsUsed : []
-  });
+  };
+  if (moduleType) resultData.moduleType = String(moduleType);
+  if (activityType) resultData.activityType = String(activityType);
+  if (difficulty) resultData.difficulty = difficulty;
+  if (generatedOrderId) resultData.generatedOrderId = String(generatedOrderId);
+  const saved = await db.saveResult(resultData);
   res.status(201).json(saved);
 });
 app.get(
@@ -985,22 +1050,110 @@ app.post(
   authenticateToken,
   requireRole(["technical_admin"]),
   async (req, res) => {
-    const { username, email, displayName, role, permissions, active } = req.body;
+    const { username, email, displayName, role, permissions, active, temporaryPassword } = req.body;
     if (!username || !email || !displayName || !role) {
-      return res.status(400).json({ error: "Faltan campos obligatorios para registrar los metadatos del usuario." });
+      return res.status(400).json({ error: "Faltan campos obligatorios para registrar el usuario." });
     }
     if (!["student", "teacher", "technical_admin"].includes(role)) {
-      return res.status(400).json({ error: "Rol no v\xE1lido." });
+      return res.status(400).json({ error: "Rol no v\xE1lido. Solo se permiten student, teacher o technical_admin." });
     }
-    const created = await db.createUser({
-      username: username.trim().toLowerCase(),
-      email: email.trim().toLowerCase(),
-      displayName: displayName.trim(),
-      role,
-      permissions: Array.isArray(permissions) ? permissions : [],
-      active: active !== void 0 ? Boolean(active) : true
-    });
-    res.status(201).json(created);
+    if (!temporaryPassword || typeof temporaryPassword !== "string" || temporaryPassword.length < 6) {
+      return res.status(400).json({
+        error: "La contrase\xF1a temporal es obligatoria y debe tener al menos 6 caracteres."
+      });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanDisplayName = displayName.trim();
+    const allowedPermissions = ["manage_catalog"];
+    const safePermissions = Array.isArray(permissions) ? permissions.filter((p) => allowedPermissions.includes(p)) : [];
+    const existingByEmail = await db.getUserByEmail(cleanEmail);
+    if (existingByEmail) {
+      return res.status(409).json({ error: "Ya existe un usuario con este correo electr\xF3nico." });
+    }
+    const allUsers = await db.getUsers();
+    if (allUsers.some((u) => u.username === cleanUsername)) {
+      return res.status(409).json({ error: "Ya existe un usuario con este nombre de acceso institucional." });
+    }
+    let createdAuthUid = null;
+    let authUserCreated = false;
+    try {
+      const auth = getAuth();
+      const fbUser = await auth.createUser({
+        email: cleanEmail,
+        password: temporaryPassword,
+        displayName: cleanDisplayName,
+        emailVerified: true
+      });
+      createdAuthUid = fbUser.uid;
+      authUserCreated = true;
+      const created = await db.createUser({
+        authUid: fbUser.uid,
+        username: cleanUsername,
+        email: cleanEmail,
+        displayName: cleanDisplayName,
+        role,
+        permissions: safePermissions,
+        active: active !== void 0 ? Boolean(active) : true
+      });
+      if (role === "student") {
+        await db.updateProfile(created.id, {
+          difficultyLevel: "facil",
+          choiceCount: 4,
+          showHint: true,
+          showExample: true,
+          textToSpeechEnabled: true,
+          pictogramsEnabled: true,
+          socialSupportsEnabled: true,
+          scaffoldingLevel: "high",
+          largeText: false,
+          highContrast: false
+        });
+      }
+      res.status(201).json(created);
+    } catch (err) {
+      if (authUserCreated && createdAuthUid) {
+        try {
+          await getAuth().deleteUser(createdAuthUid);
+          console.log(`Rollback ejecutado: cuenta Firebase Auth ${createdAuthUid} eliminada por fallo en persistencia.`);
+        } catch (delErr) {
+          console.error("Error al realizar rollback de usuario en Firebase Auth:", delErr);
+        }
+      }
+      if (err.code === "auth/email-already-exists") {
+        return res.status(409).json({ error: "El correo electr\xF3nico ya est\xE1 registrado en Firebase Authentication." });
+      }
+      if (process.env.NODE_ENV !== "production" && !authUserCreated && (err.code === "auth/network-request-failed" || err.message?.includes("credential") || err.message?.includes("network") || err.message?.includes("identitytoolkit"))) {
+        console.warn("Firebase Admin offline en modo desarrollo; creando usuario local dev:", err.message);
+        const devUid = `dev_uid_${cleanUsername}`;
+        const created = await db.createUser({
+          authUid: devUid,
+          username: cleanUsername,
+          email: cleanEmail,
+          displayName: cleanDisplayName,
+          role,
+          permissions: safePermissions,
+          active: active !== void 0 ? Boolean(active) : true
+        });
+        if (role === "student") {
+          await db.updateProfile(created.id, {
+            difficultyLevel: "facil",
+            choiceCount: 4,
+            showHint: true,
+            showExample: true,
+            textToSpeechEnabled: true,
+            pictogramsEnabled: true,
+            socialSupportsEnabled: true,
+            scaffoldingLevel: "high",
+            largeText: false,
+            highContrast: false
+          });
+        }
+        return res.status(201).json(created);
+      }
+      console.error("Error al crear usuario institucional:", err);
+      res.status(500).json({ error: err.message || "Error al crear la cuenta en Firebase Authentication." });
+    }
   }
 );
 app.patch("/api/users/:id", authenticateToken, async (req, res) => {
@@ -1024,6 +1177,13 @@ app.patch("/api/users/:id", authenticateToken, async (req, res) => {
     return res.status(403).json({ error: "Se requieren privilegios de administrador t\xE9cnico." });
   }
   const updates = req.body;
+  if (updates.active !== void 0 && target.authUid) {
+    try {
+      await getAuth().updateUser(target.authUid, { disabled: !updates.active });
+    } catch (authErr) {
+      console.warn(`No se pudo sincronizar estado disabled en Firebase Auth para ${target.authUid}:`, authErr.message);
+    }
+  }
   const updated = await db.updateUser(id, updates);
   res.json(updated);
 });

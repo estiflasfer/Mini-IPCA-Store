@@ -9,52 +9,65 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 
-const isProduction = import.meta.env.PROD;
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import appletConfig from '../../firebase-applet-config.json';
 
-// In production, validate that real Firebase Web configuration is provided.
-// Throw a clear configuration error instead of silently falling back to fake placeholders.
-if (isProduction) {
-  const missingKeys: string[] = [];
-  if (!import.meta.env.VITE_FIREBASE_API_KEY) missingKeys.push('VITE_FIREBASE_API_KEY');
-  if (!import.meta.env.VITE_FIREBASE_PROJECT_ID) missingKeys.push('VITE_FIREBASE_PROJECT_ID');
-  if (!import.meta.env.VITE_FIREBASE_APP_ID) missingKeys.push('VITE_FIREBASE_APP_ID');
-
-  if (missingKeys.length > 0) {
-    throw new Error(
-      `[Mini-IPCA Store] Error crítico de configuración: Faltan variables de entorno requeridas para Firebase Web en producción: ${missingKeys.join(
-        ', '
-      )}. Configure estas variables en Cloud Run o en el entorno de despliegue antes de iniciar.`
-    );
-  }
-}
+const env = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : ({} as any);
+const isProduction = Boolean(env.PROD);
 
 const firebaseConfig = {
-  apiKey:
-    import.meta.env.VITE_FIREBASE_API_KEY ||
-    (isProduction ? '' : 'AIzaSyDemoPlaceholderForMiniIpcaStore'),
+  apiKey: env.VITE_FIREBASE_API_KEY || appletConfig.apiKey,
   authDomain:
-    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
-    (import.meta.env.VITE_FIREBASE_PROJECT_ID
-      ? `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`
-      : 'mini-ipca-store.firebaseapp.com'),
+    env.VITE_FIREBASE_AUTH_DOMAIN ||
+    appletConfig.authDomain ||
+    'mini-ipca-store.firebaseapp.com',
   projectId:
-    import.meta.env.VITE_FIREBASE_PROJECT_ID ||
-    (isProduction ? '' : 'mini-ipca-store'),
+    env.VITE_FIREBASE_PROJECT_ID ||
+    appletConfig.projectId ||
+    'mini-ipca-store',
   storageBucket:
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
-    (import.meta.env.VITE_FIREBASE_PROJECT_ID
-      ? `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`
-      : 'mini-ipca-store.appspot.com'),
+    env.VITE_FIREBASE_STORAGE_BUCKET ||
+    appletConfig.storageBucket ||
+    'mini-ipca-store.firebasestorage.app',
   messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
-    (isProduction ? '' : '1234567890'),
+    env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
+    appletConfig.messagingSenderId ||
+    '52428004141',
   appId:
-    import.meta.env.VITE_FIREBASE_APP_ID ||
-    (isProduction ? '' : '1:1234567890:web:abcdef'),
+    env.VITE_FIREBASE_APP_ID ||
+    appletConfig.appId ||
+    '1:52428004141:web:ef0b62d161923f9401d1a4',
 };
+
+// Validate that real Firebase Web configuration is available
+const missingKeys: string[] = [];
+if (!firebaseConfig.apiKey) missingKeys.push('apiKey');
+if (!firebaseConfig.projectId) missingKeys.push('projectId');
+if (!firebaseConfig.appId) missingKeys.push('appId');
+
+if (missingKeys.length > 0) {
+  throw new Error(
+    `[Mini-IPCA Store] Error crítico de configuración: Faltan valores requeridos para Firebase Web (${missingKeys.join(
+      ', '
+    )}). Verifique firebase-applet-config.json o las variables de entorno VITE_FIREBASE_*.`
+  );
+}
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+// Test connection on boot per Firebase skill guidelines
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn('[Mini-IPCA Store] Aviso: El cliente de Firebase indica que está desconectado.');
+    }
+  }
+}
+testConnection();
 
 // Use browserSessionPersistence for shared school devices at IPCA.
 // Closing the browser tab/window clears the authentication session.

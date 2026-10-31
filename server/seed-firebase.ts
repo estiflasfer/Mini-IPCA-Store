@@ -15,13 +15,27 @@
  *   DEMO_ESTUDIANTE_PASSWORD="secret" DEMO_DOCENTE_PASSWORD="secret" DEMO_ADMIN_PASSWORD="secret" npx tsx server/seed-firebase.ts
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth, type UserRecord as FirebaseUserRecord } from 'firebase-admin/auth';
 import { db } from './repository.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT !== 'mini-ipca-store') {
+  delete process.env.GOOGLE_CLOUD_PROJECT;
+}
+if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== 'mini-ipca-store') {
+  delete process.env.GCLOUD_PROJECT;
+}
+process.env.FIREBASE_PROJECT_ID = 'mini-ipca-store';
+
+const targetProjectId = 'mini-ipca-store';
 if (!getApps().length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'mini-ipca-store';
-  initializeApp({ projectId });
+  initializeApp({ projectId: targetProjectId });
 }
 
 export interface DemoUserSpec {
@@ -98,8 +112,83 @@ export async function runFirebaseSeed() {
         });
         console.log(` • Usuario creado exitosamente en Firebase Auth (UID: ${firebaseUser.uid}).`);
       } else {
-        console.error(` • Error al consultar Firebase Auth para ${spec.email}:`, err.message);
-        continue;
+        // Fall back to Firebase Auth Identity Toolkit API using web apiKey targeting mini-ipca-store directly
+        try {
+          const configPath = path.resolve(__dirname, '../firebase-applet-config.json');
+          let apiKey = process.env.VITE_FIREBASE_API_KEY;
+          if (fs.existsSync(configPath)) {
+            const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            if (cfg.apiKey) apiKey = cfg.apiKey;
+          }
+
+          if (!apiKey) {
+            throw err;
+          }
+
+          let authUid: string | null = null;
+          let idToken: string | null = null;
+
+          if (password) {
+            // First attempt to sign in with provided password
+            const signInRes = await fetch(
+              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: spec.email, password, returnSecureToken: true }),
+              }
+            ).then((r) => r.json());
+
+            if (signInRes.localId && signInRes.idToken) {
+              authUid = signInRes.localId;
+              idToken = signInRes.idToken;
+              console.log(` • Cuenta autenticada en Firebase Auth (UID: ${authUid})`);
+            } else if (signInRes.error?.message === 'EMAIL_NOT_FOUND') {
+              // Create user via signUp
+              const signUpRes = await fetch(
+                `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: spec.email, password, returnSecureToken: true }),
+                }
+              ).then((r) => r.json());
+
+              if (signUpRes.localId && signUpRes.idToken) {
+                authUid = signUpRes.localId;
+                idToken = signUpRes.idToken;
+                console.log(` • Cuenta creada en Firebase Auth (UID: ${authUid})`);
+              } else {
+                throw new Error(signUpRes.error?.message || 'Error en signUp de Firebase Auth');
+              }
+            } else {
+              throw new Error(signInRes.error?.message || 'Error en autenticación de Firebase Auth');
+            }
+          }
+
+          if (idToken) {
+            await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:update?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ idToken, displayName: spec.displayName, returnSecureToken: true }),
+            });
+            console.log(` • Nombre visible [${spec.displayName}] sincronizado en Firebase Auth.`);
+          }
+
+          if (authUid) {
+            firebaseUser = {
+              uid: authUid,
+              email: spec.email,
+              displayName: spec.displayName,
+            } as any;
+          } else {
+            console.error(` • Error al consultar Firebase Auth para ${spec.email}:`, err.message);
+            continue;
+          }
+        } catch (fallbackErr: any) {
+          console.error(` • Error al procesar Firebase Auth para ${spec.email}:`, fallbackErr.message);
+          continue;
+        }
       }
     }
 

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 interface S05TotalCalculationProps {
-  activity: Activity;
+  activity: any;
   products: Product[];
   selectedQuantities: Record<string, number>;
   profile?: StudentProfile | null;
@@ -34,40 +34,75 @@ export const S05TotalCalculation: React.FC<S05TotalCalculationProps> = ({
   onNavigate,
   onBackToOrder,
 }) => {
-  // Dynamically calculate the real expected total from CURRENT product prices
+  // Dynamically calculate the real expected total using snapshot prices if present
   const itemsBreakdown = Object.entries(selectedQuantities)
     .filter(([_, qty]) => qty > 0)
     .map(([productId, quantity]) => {
+      const snapItem = (activity as any)?.lineItems?.find((i: any) => i.productId === productId);
       const prod = products.find((p) => p.id === productId);
-      const unitPriceCents = prod ? prod.priceCents : 0;
+      const unitPriceCents = snapItem?.unitPriceCents ?? (prod ? prod.priceCents : 0);
       const subtotalCents = unitPriceCents * quantity;
       return {
         productId,
-        name: prod?.name || productId,
-        visualKey: prod?.visualKey || 'default',
+        name: snapItem?.productName || prod?.name || productId,
+        visualKey: snapItem?.visualKey || prod?.visualKey || 'default',
         quantity,
         unitPriceCents,
         subtotalCents,
       };
     });
 
-  const expectedTotalCents = itemsBreakdown.reduce((sum, item) => sum + item.subtotalCents, 0);
+  const expectedTotalCents =
+    (activity as any)?.totalExpectedCents ??
+    itemsBreakdown.reduce((sum, item) => sum + item.subtotalCents, 0);
 
-  // Generate dynamic distractor options based on expectedTotalCents
+  // Generate dynamic distractor options based on expectedTotalCents and difficulty
   const choiceCount = profile?.choiceCount === 2 ? 2 : 4;
+  const difficulty = (activity as any)?.difficulty || profile?.difficultyLevel || 'facil';
+
   const generateChoices = (): number[] => {
     const correct = expectedTotalCents;
     if (choiceCount === 2) {
-      const wrong = Math.max(10, correct - 80);
+      const step = difficulty === 'facil' ? 50 : difficulty === 'medio' ? 25 : 15;
+      const wrong = Math.max(10, correct > step ? correct - step : correct + step);
       return [correct, wrong].sort((a, b) => a - b);
     }
-    const distractors = [
-      Math.max(10, correct - 80),
-      correct + 15,
-      correct + 75,
-    ];
+
+    // 4 options: vary distractor step by difficulty
+    let distractors: number[];
+    if (difficulty === 'facil') {
+      // Amplia separación para menor carga cognitiva
+      distractors = [
+        Math.max(10, correct - 100),
+        Math.max(10, correct - 50),
+        correct + 50,
+        correct + 100,
+      ].filter((c) => c !== correct);
+    } else if (difficulty === 'medio') {
+      // Separación moderada (25¢ - 50¢)
+      distractors = [
+        Math.max(10, correct - 50),
+        Math.max(10, correct - 25),
+        correct + 25,
+        correct + 50,
+        correct + 75,
+      ].filter((c) => c !== correct);
+    } else {
+      // Avanzado: distractores sutiles que evalúan cálculo exacto (10¢ - 20¢)
+      distractors = [
+        Math.max(10, correct - 25),
+        Math.max(10, correct - 10),
+        correct + 10,
+        correct + 15,
+        correct + 25,
+      ].filter((c) => c !== correct);
+    }
+
     const set = Array.from(new Set([correct, ...distractors]));
-    return set.sort((a, b) => a - b);
+    while (set.length < 4) {
+      set.push(correct + set.length * 25);
+    }
+    return set.slice(0, 4).sort((a, b) => a - b);
   };
 
   const [choices] = useState<number[]>(generateChoices);
@@ -96,13 +131,17 @@ export const S05TotalCalculation: React.FC<S05TotalCalculationProps> = ({
   };
 
   const firstItem = itemsBreakdown[0];
-  const dynamicHint = firstItem
-    ? `Primero calcula cuánto cuestan los ${firstItem.quantity} ${firstItem.name.toLowerCase()}s (${firstItem.quantity} × ${formatCents(firstItem.unitPriceCents)}). Luego suma el resto.`
-    : 'Multiplica la cantidad de cada producto por su precio y suma los subtotales.';
+  const dynamicHint =
+    (activity as any)?.hintText ||
+    (firstItem
+      ? `Primero calcula cuánto cuestan los ${firstItem.quantity} ${firstItem.name.toLowerCase()} (${firstItem.quantity} × ${formatCents(firstItem.unitPriceCents)} = ${formatCents(firstItem.subtotalCents)}). Luego suma los demás productos.`
+      : 'Multiplica la cantidad de cada producto por su precio unitario y suma los subtotales.');
 
-  const dynamicExample = firstItem
-    ? `${firstItem.quantity} productos de ${formatCents(firstItem.unitPriceCents)} cuestan ${formatCents(firstItem.subtotalCents)}.`
-    : '2 productos de $0,80 cuestan $1,60.';
+  const dynamicExample =
+    (activity as any)?.exampleText ||
+    (firstItem
+      ? `${firstItem.quantity} ${firstItem.quantity === 1 ? 'unidad' : 'unidades'} de ${firstItem.name} a ${formatCents(firstItem.unitPriceCents)} c/u = ${formatCents(firstItem.subtotalCents)}.`
+      : 'Suma el precio de cada producto del pedido.');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

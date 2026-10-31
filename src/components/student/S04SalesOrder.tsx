@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 interface S04SalesOrderProps {
-  activity: Activity & { expectedTotalCents: number; expectedChangeCents: number };
+  activity: any;
   products: Product[];
   selectedQuantities: Record<string, number>;
   onUpdateQuantities: (quantities: Record<string, number>) => void;
@@ -77,7 +77,7 @@ export const S04SalesOrder: React.FC<S04SalesOrderProps> = ({
     for (const req of activity.lineItems) {
       const selectedQty = selectedQuantities[req.productId] || 0;
       const productObj = products.find((p) => p.id === req.productId);
-      const prodName = productObj ? productObj.name : req.productId;
+      const prodName = (req as any).productName || (productObj ? productObj.name : req.productId);
 
       if (selectedQty !== req.quantity) {
         isMatch = false;
@@ -87,7 +87,7 @@ export const S04SalesOrder: React.FC<S04SalesOrderProps> = ({
 
     // Check if extra products were selected
     for (const [pId, qty] of Object.entries(selectedQuantities)) {
-      if (qty > 0 && !activity.lineItems.some((l) => l.productId === pId)) {
+      if (qty > 0 && !activity.lineItems.some((l: any) => l.productId === pId)) {
         isMatch = false;
         const extraProd = products.find((p) => p.id === pId);
         mismatchDetails.push(`${extraProd?.name || pId} no fue solicitado en este pedido.`);
@@ -111,6 +111,12 @@ export const S04SalesOrder: React.FC<S04SalesOrderProps> = ({
   const selectedEntries = Object.entries(selectedQuantities).filter(([_, qty]) => qty > 0);
   const totalItemCount = selectedEntries.reduce((sum, [_, q]) => sum + q, 0);
 
+  const dynamicHint =
+    (activity as any).hintText ||
+    `Observa con atención el pedido: ${activity.instruction} Busca cada producto en la lista y presiona el botón (+) hasta que el número sea igual al pedido.`;
+  const dynamicAudio =
+    (activity as any).audioInstruction || `El cliente solicita: ${activity.instruction}`;
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Client Request Banner - MUST STAY PROMINENT AND VISIBLE */}
@@ -127,12 +133,21 @@ export const S04SalesOrder: React.FC<S04SalesOrderProps> = ({
               <p className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 leading-tight">
                 “{activity.instruction}”
               </p>
+              {activity.degradationNotice && (
+                <div
+                  role="status"
+                  className="mt-3 p-3 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-xs sm:text-sm font-semibold flex items-center gap-2"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-700" />
+                  <span>{activity.degradationNotice}</span>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <AudioButton
-              textToSpeak={`El cliente solicita: ${activity.instruction}`}
+              textToSpeak={dynamicAudio}
               label="Escuchar pedido"
               variant="primary"
             />
@@ -195,12 +210,10 @@ export const S04SalesOrder: React.FC<S04SalesOrderProps> = ({
           <Lightbulb className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="font-bold text-base mb-0.5">Pista para registrar el pedido:</h3>
-            <p className="text-base text-amber-900">
-              Observa con atención: el cliente pidió 2 jugos y 1 paquete de galletas. Busca cada producto en la lista y presiona el botón (+) hasta que el número sea igual al pedido.
-            </p>
+            <p className="text-base text-amber-900">{dynamicHint}</p>
           </div>
           <AudioButton
-            textToSpeak="Pista: Observa con atención: el cliente pidió 2 jugos y 1 paquete de galletas. Busca cada producto en la lista y presiona el botón más hasta que el número sea igual al pedido."
+            textToSpeak={`Pista: ${dynamicHint}`}
             label="Escuchar pista"
             variant="compact"
           />

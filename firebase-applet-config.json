@@ -1,0 +1,12 @@
+{
+  "projectId": "mini-ipca-store",
+  "appId": "1:52428004141:web:ef0b62d161923f9401d1a4",
+  "apiKey": "AIzaSyAq4j9RN227_7jplweF-wInsJjemJsjeC4",
+  "authDomain": "mini-ipca-store.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "mini-ipca-store.firebasestorage.app",
+  "messagingSenderId": "52428004141",
+  "measurementId": "",
+  "oAuthClientId": "52428004141-5fptg1l5acbv0san0a0ukrp86jok9du5.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
+}

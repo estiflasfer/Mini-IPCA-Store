@@ -51,8 +51,8 @@ export const T01TeacherDashboard: React.FC<T01TeacherDashboardProps> = ({
       color: 'sky',
     },
     {
-      title: 'Actividades y niveles',
-      description: 'Biblioteca de escenarios formativos: venta, conteo, operaciones y medidas.',
+      title: 'Biblioteca de módulos formativos',
+      description: 'Consulta los contenidos de entrenamiento y selecciona los módulos disponibles para cada estudiante.',
       icon: Layers,
       badge: '6 módulos',
       screen: 'T04' as ScreenId,
@@ -100,7 +100,11 @@ export const T01TeacherDashboard: React.FC<T01TeacherDashboardProps> = ({
           <select
             id="student-selector"
             value={selectedStudentId}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
+            onChange={(e) => {
+              const newId = e.target.value;
+              setSelectedStudentId(newId);
+              onSelectStudentForProfile(newId);
+            }}
             className="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-300 font-semibold text-slate-900 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
           >
             {students.map((st) => (
@@ -195,9 +199,7 @@ export const T01TeacherDashboard: React.FC<T01TeacherDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (card.screen === 'T02' || card.screen === 'T03') {
-                      onSelectStudentForProfile(selectedStudentId);
-                    }
+                    onSelectStudentForProfile(selectedStudentId);
                     onNavigate(card.screen);
                   }}
                   className="min-h-[48px] px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm flex items-center gap-2 transition-colors focus:outline-none focus:ring-4 focus:ring-sky-200 cursor-pointer ml-auto"

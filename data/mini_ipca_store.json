@@ -2,7 +2,7 @@
   "users": [
     {
       "id": "user_student_1",
-      "authUid": "auth_student_1",
+      "authUid": "dufItgxNuRhdRgvtlt3At1gXeWg2",
       "username": "estudiante.demo",
       "email": "estudiante@ipca.edu",
       "displayName": "Carlos M. (Estudiante Demo)",
@@ -10,11 +10,11 @@
       "permissions": [],
       "active": true,
       "createdAt": "2026-01-01T08:00:00Z",
-      "updatedAt": "2026-01-01T08:00:00Z"
+      "updatedAt": "2026-10-26T16:35:46.293Z"
     },
     {
       "id": "user_teacher_1",
-      "authUid": "auth_teacher_1",
+      "authUid": "nEGhIGevplX2niACiZqbEMnWqrk1",
       "username": "docente.demo",
       "email": "docente@ipca.edu",
       "displayName": "Prof. María Elena (Docente Demo)",
@@ -24,11 +24,11 @@
       ],
       "active": true,
       "createdAt": "2026-01-01T08:00:00Z",
-      "updatedAt": "2026-01-01T08:00:00Z"
+      "updatedAt": "2026-10-26T16:35:46.517Z"
     },
     {
       "id": "user_admin_1",
-      "authUid": "auth_admin_1",
+      "authUid": "OTYBqIm5zNgCXwW4q14jId2E3L33",
       "username": "admin.demo",
       "email": "admin@ipca.edu",
       "displayName": "Ing. Roberto Silva (Admin Demo)",
@@ -38,7 +38,7 @@
       ],
       "active": true,
       "createdAt": "2026-01-01T08:00:00Z",
-      "updatedAt": "2026-01-01T08:00:00Z"
+      "updatedAt": "2026-10-26T16:35:46.739Z"
     },
     {
       "authUid": "dev_uid_temp.student",
@@ -326,37 +326,5 @@
       "active": true
     }
   ],
-  "results": [
-    {
-      "id": "RES-001",
-      "studentId": "user_student_1",
-      "studentName": "Carlos M. (Estudiante Demo)",
-      "activityId": "ACT-001",
-      "lineItemsSnapshot": [
-        {
-          "productId": "P002",
-          "productName": "Jugo",
-          "unitPriceCents": 80,
-          "quantity": 2
-        },
-        {
-          "productId": "P003",
-          "productName": "Galletas",
-          "unitPriceCents": 75,
-          "quantity": 1
-        }
-      ],
-      "totalExpectedCents": 235,
-      "totalAnsweredCents": 235,
-      "paymentAmountCents": 500,
-      "changeExpectedCents": 265,
-      "changeAnsweredCents": 265,
-      "attempts": 1,
-      "correct": true,
-      "supportsUsed": [
-        "pista"
-      ],
-      "completedAt": "2026-10-24T10:15:00Z"
-    }
-  ]
+  "results": []
 }

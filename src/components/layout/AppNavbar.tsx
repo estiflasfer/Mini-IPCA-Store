@@ -1,13 +1,14 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ScreenId } from '../../types';
-import { Store, LogOut, User as UserIcon, Type, Eye } from 'lucide-react';
+import { ScreenId, TextSizeLevel } from '../../types';
+import { Store, LogOut, User as UserIcon, Type, Eye, Plus, Minus } from 'lucide-react';
 
 interface AppNavbarProps {
   currentScreen: ScreenId;
   onNavigate: (screen: ScreenId) => void;
-  largeText: boolean;
-  onToggleLargeText: () => void;
+  textSize: TextSizeLevel;
+  onIncreaseTextSize: () => void;
+  onDecreaseTextSize: () => void;
   highContrast: boolean;
   onToggleHighContrast: () => void;
 }
@@ -15,8 +16,9 @@ interface AppNavbarProps {
 export const AppNavbar: React.FC<AppNavbarProps> = ({
   currentScreen,
   onNavigate,
-  largeText,
-  onToggleLargeText,
+  textSize,
+  onIncreaseTextSize,
+  onDecreaseTextSize,
   highContrast,
   onToggleHighContrast,
 }) => {
@@ -86,24 +88,53 @@ export const AppNavbar: React.FC<AppNavbarProps> = ({
         {user ? (
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Accessibility helpers */}
-            <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 type="button"
-                onClick={onToggleLargeText}
-                className={`min-h-[40px] px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                  largeText ? 'bg-white shadow-xs text-sky-700' : 'text-slate-600 hover:text-slate-900'
+                onClick={onDecreaseTextSize}
+                disabled={textSize === 'normal'}
+                aria-label="Disminuir tamaño de texto"
+                title={textSize === 'normal' ? 'Tamaño de texto mínimo' : 'Disminuir tamaño de texto'}
+                className={`min-h-[40px] px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${
+                  textSize === 'normal'
+                    ? 'opacity-40 cursor-not-allowed text-slate-400'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-white hover:shadow-2xs cursor-pointer'
                 }`}
-                title="Alternar texto grande"
-                aria-pressed={largeText}
               >
-                <Type className="w-4 h-4" />
+                <Minus className="w-3.5 h-3.5" />
+                <span>Texto −</span>
+              </button>
+
+              <span
+                className="text-[11px] font-mono font-bold text-slate-500 px-1 select-none hidden sm:inline"
+                aria-hidden="true"
+              >
+                {textSize === 'normal' ? '100%' : textSize === 'large' ? '120%' : '140%'}
+              </span>
+
+              <button
+                type="button"
+                onClick={onIncreaseTextSize}
+                disabled={textSize === 'extraLarge'}
+                aria-label="Aumentar tamaño de texto"
+                title={textSize === 'extraLarge' ? 'Tamaño de texto máximo' : 'Aumentar tamaño de texto'}
+                className={`min-h-[40px] px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${
+                  textSize === 'extraLarge'
+                    ? 'opacity-40 cursor-not-allowed text-slate-400'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-white hover:shadow-2xs cursor-pointer'
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5" />
                 <span>Texto +</span>
               </button>
+
+              <div className="w-px h-5 bg-slate-300 mx-0.5" />
+
               <button
                 type="button"
                 onClick={onToggleHighContrast}
                 className={`min-h-[40px] px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                  highContrast ? 'bg-white shadow-xs text-sky-700' : 'text-slate-600 hover:text-slate-900'
+                  highContrast ? 'bg-white shadow-xs text-sky-800 border border-sky-300' : 'text-slate-600 hover:text-slate-900'
                 }`}
                 title="Alternar alto contraste"
                 aria-pressed={highContrast}

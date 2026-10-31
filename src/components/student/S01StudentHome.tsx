@@ -7,13 +7,13 @@ import { AudioButton } from '../common/AudioButton';
 interface S01StudentHomeProps {
   onNavigate: (screen: ScreenId) => void;
   completedSalesCount: number;
-  totalGoal: number;
+  totalGoal?: number;
 }
 
 export const S01StudentHome: React.FC<S01StudentHomeProps> = ({
   onNavigate,
   completedSalesCount,
-  totalGoal = 3,
+  totalGoal = 5,
 }) => {
   const { user } = useAuth();
 
@@ -79,13 +79,13 @@ export const S01StudentHome: React.FC<S01StudentHomeProps> = ({
           </button>
         </div>
 
-        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-          <div className="flex items-center justify-between mb-2">
+        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-base font-semibold text-slate-700">
-              Ventas de entrenamiento completadas
+              Meta sugerida de práctica: 5 ventas
             </span>
             <span className="text-lg font-black text-slate-900 font-mono">
-              {completedSalesCount} de {totalGoal}
+              {completedSalesCount} {completedSalesCount === 1 ? 'venta' : 'ventas'}
             </span>
           </div>
 
@@ -103,6 +103,12 @@ export const S01StudentHome: React.FC<S01StudentHomeProps> = ({
               style={{ width: `${Math.min(100, (completedSalesCount / totalGoal) * 100)}%` }}
             />
           </div>
+
+          {completedSalesCount >= 5 && (
+            <p className="text-xs font-bold text-emerald-800 bg-emerald-100/70 p-2 rounded-lg border border-emerald-300">
+              ¡Meta sugerida de práctica alcanzada! Puedes seguir practicando ventas libremente.
+            </p>
+          )}
         </div>
 
         {/* Action buttons */}

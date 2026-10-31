@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+:root[data-text-size="normal"] {
+  font-size: 100%;
+}
+
+:root[data-text-size="large"] {
+  font-size: 120%;
+}
+
+:root[data-text-size="extraLarge"] {
+  font-size: 140%;
+}

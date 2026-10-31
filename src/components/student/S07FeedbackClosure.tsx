@@ -19,7 +19,7 @@ export const S07FeedbackClosure: React.FC<S07FeedbackClosureProps> = ({
   paymentCents,
   changeCents,
   completedCount,
-  totalGoal = 3,
+  totalGoal = 5,
   onPracticeAgain,
   onNavigate,
 }) => {
@@ -88,16 +88,16 @@ export const S07FeedbackClosure: React.FC<S07FeedbackClosureProps> = ({
         </div>
 
         {/* Progress tracker */}
-        <div className="bg-sky-50/70 p-5 rounded-2xl border border-sky-200 text-left">
-          <div className="flex items-center justify-between mb-2">
+        <div className="bg-sky-50/70 p-5 rounded-2xl border border-sky-200 text-left space-y-2">
+          <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <Award className="w-5 h-5 text-sky-700" />
               <span className="text-sm font-bold text-sky-950">
-                Ventas de entrenamiento completadas:
+                Meta sugerida de práctica: 5 ventas
               </span>
             </div>
             <span className="text-base font-black text-sky-950 font-mono">
-              {completedCount} de {totalGoal}
+              {completedCount} {completedCount === 1 ? 'venta' : 'ventas'}
             </span>
           </div>
 
@@ -113,6 +113,12 @@ export const S07FeedbackClosure: React.FC<S07FeedbackClosureProps> = ({
               style={{ width: `${Math.min(100, (completedCount / totalGoal) * 100)}%` }}
             />
           </div>
+
+          {completedCount >= 5 && (
+            <div className="p-2.5 bg-emerald-100/80 border border-emerald-300 rounded-xl text-emerald-900 text-xs sm:text-sm font-bold text-center">
+              ¡Meta de práctica alcanzada! Puedes seguir practicando o finalizar.
+            </div>
+          )}
         </div>
 
         {/* Actions */}
